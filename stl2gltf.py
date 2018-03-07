@@ -52,7 +52,7 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
     {
       "bufferView" : 0,
       "byteOffset" : 0,
-      "componentType" : 5123,
+      "componentType" : 5125,
       "count" : %d,
       "type" : "SCALAR",
       "max" : [ %d ],
@@ -76,65 +76,57 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
 '''
 
     header_bytes = 80
-    long_int_bytes = 4
-    unsigned_int_bytes = 2
+    unsigned_long_int_bytes = 4
     float_bytes = 4
     vec3_bytes = 4 * 3
     spacer_bytes = 2
     num_vertices_in_face = 3
 
-    f = open(path_to_stl, "rb")
+    vertices = {}
+    indices = []
 
     if not is_binary:
         out_bin = os.path.join(out_path, "out.bin")
+        out_gltf = os.path.join(out_path, "out.gltf")
     else:
         out_bin = out_path
 
-    f.seek(header_bytes) # skip 80 bytes headers
+    with open(path_to_stl, "rb") as f:
+        f.seek(header_bytes) # skip 80 bytes headers
 
-    num_faces_bytes = f.read(long_int_bytes)
+        num_faces_bytes = f.read(unsigned_long_int_bytes)
+        number_faces = struct.unpack("<I", num_faces_bytes)[0]
 
-    number_faces = int.from_bytes(num_faces_bytes, byteorder='little')
+        # the vec3_bytes is for normal
+        stl_assume_bytes = header_bytes + unsigned_long_int_bytes + number_faces * (vec3_bytes*3 + spacer_bytes + vec3_bytes)
+        assert stl_assume_bytes == os.path.getsize(path_to_stl), "stl is not binary or ill formatted"
 
-    number_vertices = number_faces * num_vertices_in_face # each faces has 3 vertices
-
-    if number_vertices > 65535:
-        print("too many vertices {} would not work, exiting".format(number_vertices))
-        sys.exit(1)
-
-    vertices_bytelength = number_vertices * vec3_bytes # each vec3 has 3 floats, each float is 4 bytes
-    unpadded_indices_bytelength = number_vertices * unsigned_int_bytes
-    indices_bytelength = (unpadded_indices_bytelength + 3) & ~3
-
-    # the vec3_bytes is for normal
-    stl_assume_bytes = header_bytes + long_int_bytes + number_faces * (vec3_bytes + spacer_bytes) + vertices_bytelength
-    assert stl_assume_bytes == os.path.getsize(path_to_stl), "stl is not binary or ill formatted"
-
-    out_bin_bytelength = indices_bytelength + vertices_bytelength
-
-
-    minx, maxx = [9999999, -9999999]
-    miny, maxy = [9999999, -9999999]
-    minz, maxz = [9999999, -9999999]
-
-    with open(out_bin, "wb") as o:
-        for i in range(number_vertices): # TODO: padding spaces for vertices
-            o.write(struct.pack('<H', i));
-
-        for i in range(indices_bytelength - unpadded_indices_bytelength):
-            o.write(b' ')
-
+        minx, maxx = [9999999, -9999999]
+        miny, maxy = [9999999, -9999999]
+        minz, maxz = [9999999, -9999999]
 
         for i in range(number_faces):
             f.seek(vec3_bytes, 1) # skip the normals
             for i in range(num_vertices_in_face): # 3 vertices for each face
-                x = f.read(float_bytes); o.write(x);
-                y = f.read(float_bytes); o.write(y);
-                z = f.read(float_bytes); o.write(z);
+                x = f.read(float_bytes);# o.write(x);
+                y = f.read(float_bytes);# o.write(y);
+                z = f.read(float_bytes);# o.write(z);
 
                 x = struct.unpack('f', x)[0]
                 y = struct.unpack('f', y)[0]
                 z = struct.unpack('f', z)[0]
+
+                # round to 6 digits to avoid floating point error
+                x = round(x*100000)/100000
+                y = round(y*100000)/100000
+                z = round(z*100000)/100000
+
+                tuple_xyz = (x, y, z);
+
+                if (x, y, z) not in vertices:
+                    vertices[tuple_xyz] = len(vertices)
+
+                indices.append(vertices[tuple_xyz])
 
                 if x < minx: minx = x
                 if x > maxx: maxx = x
@@ -145,7 +137,17 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
 
             f.seek(spacer_bytes, 1) # skip the spacer
 
-    assert os.path.getsize(out_bin) == out_bin_bytelength
+        number_vertices = len(vertices)
+        vertices_bytelength = number_vertices * vec3_bytes # each vec3 has 3 floats, each float is 4 bytes
+        unpadded_indices_bytelength = number_vertices * unsigned_long_int_bytes
+
+    out_number_vertices = len(vertices)
+    out_number_indices = len(indices)
+
+    unpadded_indices_bytelength = out_number_indices * unsigned_long_int_bytes
+    indices_bytelength = (unpadded_indices_bytelength + 3) & ~3
+
+    out_bin_bytelength = vertices_bytelength + indices_bytelength
 
     if is_binary:
         out_bin_uir = ""
@@ -153,7 +155,6 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
         out_bin_uir = '"uri": "out.bin",'
 
     gltf2 = gltf2 % ( out_bin_uir,
-
                 #buffer
                 out_bin_bytelength,
 
@@ -165,20 +166,19 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
                 vertices_bytelength,
 
                 # accessors[0]
-                number_vertices,
-                number_vertices - 1,
+                out_number_indices,
+                out_number_vertices - 1,
 
                 # accessors[1]
-                number_vertices,
+                out_number_vertices,
                 minx, miny, minz,
-                maxx, maxy, maxz)
+                maxx, maxy, maxz
+    )
 
+    glb_out = bytearray()
     if is_binary:
-
         gltf2 = gltf2.replace(" ", "")
         gltf2 = gltf2.replace("\n", "")
-
-        glb_out = bytearray()
 
         scene = bytearray(gltf2.encode())
 
@@ -205,22 +205,25 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
         glb_out.extend(struct.pack('<I', out_bin_bytelength))
         glb_out.extend(struct.pack('<I', 0x004E4942)) # magin number for BIN
 
-        with open(out_bin, "rb") as out:
-            b = out.read()
+    for i in indices:
+        glb_out.extend(struct.pack('<I', i))
 
-        glb_out.extend(b)
+    for i in range(indices_bytelength - unpadded_indices_bytelength):
+        glb_out.extend(b' ')
 
-        with open(out_bin, "wb") as out:
-            out.write(glb_out)
+    for (v_x, v_y, v_z), _ in sorted(vertices.items(), key=lambda x: x[1]):
+        glb_out.extend(struct.pack('f', v_x)) # magin number for BIN
+        glb_out.extend(struct.pack('f', v_y)) # magin number for BIN
+        glb_out.extend(struct.pack('f', v_z)) # magin number for BIN
 
-        # with open(out_bin, "rb") as out:
-            # b = out.read()
-            # print(b)
-    else:
-        out_file = os.path.join(out_path, "out.gltf")
-        o_gltf = open(out_file, "w")
-        o_gltf.write(gltf2)
+    with open(out_bin, "wb") as out:
+        out.write(glb_out)
 
+    if not is_binary:
+        with open(out_gltf, "w") as out:
+            out.write(gltf2)
+
+    print("Done! Exported to %s" %out_path)
 
 if __name__ == '__main__':
     import sys
