@@ -4,62 +4,80 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
     import struct
 
     gltf2 = '''
+{
+  "scenes" : [
     {
-      "scenes" : [
-        {
-          "nodes" : [ 0 ]
-        }
-      ],
-
-      "nodes" : [
-        {
-          "mesh" : 0
-        }
-      ],
-
-      "meshes" : [
-        {
-          "primitives" : [ {
-            "attributes" : {
-              "POSITION" : 0
-            }
-          } ]
-        }
-      ],
-
-      "buffers" : [
-        {
-          %s
-          "byteLength" : %d
-        }
-      ],
-      "bufferViews" : [
-        {
-          "buffer" : 0,
-          "byteOffset" : 0,
-          "byteLength" : %d,
-          "target" : 34962
-        }
-      ],
-      "accessors" : [
-        {
-          "bufferView" : 0,
-          "componentType" : 5126,
-          "count" : %d,
-          "type" : "VEC3",
-          "min" : [ %f, %f, %f ],
-          "max" : [ %f, %f, %f ]
-        }
-      ],
-
-      "asset" : {
-        "version" : "2.0"
-      }
+      "nodes" : [ 0 ]
     }
-    '''
+  ],
+
+  "nodes" : [
+    {
+      "mesh" : 0
+    }
+  ],
+
+  "meshes" : [
+    {
+      "primitives" : [ {
+        "attributes" : {
+          "POSITION" : 1
+        },
+        "indices" : 0
+      } ]
+    }
+  ],
+
+  "buffers" : [
+    {
+      %s
+      "byteLength" : %d
+    }
+  ],
+  "bufferViews" : [
+    {
+      "buffer" : 0,
+      "byteOffset" : 0,
+      "byteLength" : %d,
+      "target" : 34963
+    },
+    {
+      "buffer" : 0,
+      "byteOffset" : %d,
+      "byteLength" : %d,
+      "target" : 34962
+    }
+  ],
+  "accessors" : [
+    {
+      "bufferView" : 0,
+      "byteOffset" : 0,
+      "componentType" : 5123,
+      "count" : %d,
+      "type" : "SCALAR",
+      "max" : [ %d ],
+      "min" : [ 0 ]
+    },
+    {
+      "bufferView" : 1,
+      "byteOffset" : 0,
+      "componentType" : 5126,
+      "count" : %d,
+      "type" : "VEC3",
+      "min" : [%f, %f, %f],
+      "max" : [%f, %f, %f]
+    }
+  ],
+
+  "asset" : {
+    "version" : "2.0"
+  }
+}
+'''
 
     header_bytes = 80
     long_int_bytes = 4
+    unsigned_int_bytes = 2
     float_bytes = 4
     vec3_bytes = 4 * 3
     spacer_bytes = 2
@@ -77,15 +95,22 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
     num_faces_bytes = f.read(long_int_bytes)
 
     number_faces = int.from_bytes(num_faces_bytes, byteorder='little')
-    print(number_faces)
 
-    vertices_count = number_faces * num_vertices_in_face # each faces has 3 vertices
-    byteLength = vertices_count * vec3_bytes # each vec3 has 3 floats, each float is 4 bytes
+    number_vertices = number_faces * num_vertices_in_face # each faces has 3 vertices
+
+    if number_vertices > 65535:
+        print("too many vertices {} would not work, exiting".format(number_vertices))
+        sys.exit(1)
+
+    vertices_bytelength = number_vertices * vec3_bytes # each vec3 has 3 floats, each float is 4 bytes
+    unpadded_indices_bytelength = number_vertices * unsigned_int_bytes
+    indices_bytelength = (unpadded_indices_bytelength + 3) & ~3
 
     # the vec3_bytes is for normal
-    total_bytes = header_bytes + long_int_bytes + number_faces * (vec3_bytes + spacer_bytes) + byteLength
+    stl_assume_bytes = header_bytes + long_int_bytes + number_faces * (vec3_bytes + spacer_bytes) + vertices_bytelength
+    assert stl_assume_bytes == os.path.getsize(path_to_stl), "stl is not binary or ill formatted"
 
-    assert total_bytes == os.path.getsize(path_to_stl), "stl is not binary or ill formatted"
+    out_bin_bytelength = indices_bytelength + vertices_bytelength
 
 
     minx, maxx = [9999999, -9999999]
@@ -93,11 +118,16 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
     minz, maxz = [9999999, -9999999]
 
     with open(out_bin, "wb") as o:
+        for i in range(number_vertices): # TODO: padding spaces for vertices
+            o.write(struct.pack('<H', i));
+
+        for i in range(indices_bytelength - unpadded_indices_bytelength):
+            o.write(b' ')
+
+
         for i in range(number_faces):
             f.seek(vec3_bytes, 1) # skip the normals
             for i in range(num_vertices_in_face): # 3 vertices for each face
-                # print(struct.unpack('f', f.read(4)))
-
                 x = f.read(float_bytes); o.write(x);
                 y = f.read(float_bytes); o.write(y);
                 z = f.read(float_bytes); o.write(z);
@@ -115,13 +145,31 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
 
             f.seek(spacer_bytes, 1) # skip the spacer
 
+    assert os.path.getsize(out_bin) == out_bin_bytelength
+
     if is_binary:
         out_bin_uir = ""
     else:
         out_bin_uir = '"uri": "out.bin",'
 
     gltf2 = gltf2 % ( out_bin_uir,
-                byteLength, byteLength, vertices_count,
+
+                #buffer
+                out_bin_bytelength,
+
+                # bufferViews[0]
+                indices_bytelength,
+
+                # bufferViews[1]
+                indices_bytelength,
+                vertices_bytelength,
+
+                # accessors[0]
+                number_vertices,
+                number_vertices - 1,
+
+                # accessors[1]
+                number_vertices,
                 minx, miny, minz,
                 maxx, maxy, maxz)
 
@@ -138,72 +186,36 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
         padded_scene_len = (scene_len + 3) & ~3
         body_offset = padded_scene_len + 12 + 8
 
-        print("body_offset", body_offset)
-        print("byteLength", byteLength)
-        print("padded scene len ", body_offset)
+        file_len = body_offset + out_bin_bytelength + 8
 
-        file_len = body_offset + byteLength + 8
-
-        print("scene_len", len(scene))
-
-        print("len glb out", len(glb_out))
         # 12-byte header
-        # glb_out.extend(struct.pack('s', b'g'))
-        # glb_out.extend(struct.pack('s', b'l'))
-        # glb_out.extend(struct.pack('s', b'T'))
-        # glb_out.extend(struct.pack('s', b'F'))
-        glb_out.extend(struct.pack('<I', 0x46546C67))
+        glb_out.extend(struct.pack('<I', 0x46546C67)) # magic number for glTF
         glb_out.extend(struct.pack('<I', 2))
         glb_out.extend(struct.pack('<I', file_len))
-        print("len glb out", len(glb_out))
 
         # chunk 0
-        print("padding scene_len", padded_scene_len)
         glb_out.extend(struct.pack('<I', padded_scene_len))
-        glb_out.extend(struct.pack('<I', 0x4E4F534A))
-        # glb_out.extend(struct.pack('s', b'J'))
-        # glb_out.extend(struct.pack('s', b'S'))
-        # glb_out.extend(struct.pack('s', b'O'))
-        # glb_out.extend(struct.pack('s', b'N'))
-        print("len glb out", len(glb_out))
+        glb_out.extend(struct.pack('<I', 0x4E4F534A)) # magic number for JSON
         glb_out.extend(scene)
 
-        print("len glb out", len(glb_out))
         while len(glb_out) < body_offset:
             glb_out.extend(b' ')
 
-        print("len glb out after extend", len(glb_out))
-        print("len byte length", byteLength)
         # chunk 1
-        glb_out.extend(struct.pack('<I', byteLength))
-        glb_out.extend(struct.pack('<I', 0x004E4942))
-        # glb_out.extend(struct.pack('s', b' '))
-        # glb_out.extend(struct.pack('s', b'B'))
-        # glb_out.extend(struct.pack('s', b'I'))
-        # glb_out.extend(struct.pack('s', b'N'))
-        print("len glb out", len(glb_out))
-
-
-        print("outpath size", os.path.getsize(out_bin))
+        glb_out.extend(struct.pack('<I', out_bin_bytelength))
+        glb_out.extend(struct.pack('<I', 0x004E4942)) # magin number for BIN
 
         with open(out_bin, "rb") as out:
-            # print(type(o.read()))
             b = out.read()
-            print(b)
-            print(len(b))
 
         glb_out.extend(b)
 
         with open(out_bin, "wb") as out:
             out.write(glb_out)
 
-        with open(out_bin, "rb") as out:
-            # print(type(o.read()))
-            b = out.read()
-            print(b)
-
-        print("correct", file_len)
-        print("out file bytes", os.path.getsize(out_bin))
+        # with open(out_bin, "rb") as out:
+            # b = out.read()
+            # print(b)
     else:
         out_file = os.path.join(out_path, "out.gltf")
         o_gltf = open(out_file, "w")
