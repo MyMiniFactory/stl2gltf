@@ -13,7 +13,8 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
 
   "nodes" : [
     {
-      "mesh" : 0
+      "mesh" : 0,
+      "rotation": [-0.7, 0.0, 0.0, 0.7]
     }
   ],
 
