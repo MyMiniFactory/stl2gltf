@@ -3,8 +3,8 @@ Convert binary STL to glTF
 
 **Usage**
 
-python3 stl_to_gltf.py /path/to/stl /path/to/gltf/folder      
-python3 stl_to_gltf.py /path/to/stl /path/to/glb/file -b
+python3 stl2gltf.py /path/to/stl /path/to/gltf/folder      
+python3 stl2gltf.py /path/to/stl /path/to/glb/file -b
 
 **Share your STL to Facebook**
 
