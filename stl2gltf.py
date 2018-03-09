@@ -91,6 +91,9 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
     else:
         out_bin = out_path
 
+    unpack_12f = struct.Struct("12f").unpack
+    float_12_bytes = float_bytes*12
+
     with open(path_to_stl, "rb") as f:
         f.seek(header_bytes) # skip 80 bytes headers
 
@@ -105,26 +108,23 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
         miny, maxy = [9999999, -9999999]
         minz, maxz = [9999999, -9999999]
 
+        vertices_length_counter = 0
         for i in range(number_faces):
-            f.seek(vec3_bytes, 1) # skip the normals
-            for i in range(num_vertices_in_face): # 3 vertices for each face
-                x = f.read(float_bytes);# o.write(x);
-                y = f.read(float_bytes);# o.write(y);
-                z = f.read(float_bytes);# o.write(z);
+            vs = unpack_12f(f.read(float_12_bytes))
+            # vs = [int(v*100000)/100000 for v in vs]
 
-                x = struct.unpack('f', x)[0]
-                y = struct.unpack('f', y)[0]
-                z = struct.unpack('f', z)[0]
+            for i in range(3, 12, 3): # skip the normal first 3 floats
+                x, y, z = vs[i:i+3]
 
-                # round to 6 digits to avoid floating point error
-                x = round(x*100000)/100000
-                y = round(y*100000)/100000
-                z = round(z*100000)/100000
+                x = int(x*100000)/100000
+                y = int(y*100000)/100000
+                z = int(z*100000)/100000
 
                 tuple_xyz = (x, y, z);
 
                 if (x, y, z) not in vertices:
-                    vertices[tuple_xyz] = len(vertices)
+                    vertices[tuple_xyz] = vertices_length_counter
+                    vertices_length_counter += 1
 
                 indices.append(vertices[tuple_xyz])
 
@@ -137,9 +137,9 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
 
             f.seek(spacer_bytes, 1) # skip the spacer
 
-        number_vertices = len(vertices)
-        vertices_bytelength = number_vertices * vec3_bytes # each vec3 has 3 floats, each float is 4 bytes
-        unpadded_indices_bytelength = number_vertices * unsigned_long_int_bytes
+    number_vertices = len(vertices)
+    vertices_bytelength = number_vertices * vec3_bytes # each vec3 has 3 floats, each float is 4 bytes
+    unpadded_indices_bytelength = number_vertices * unsigned_long_int_bytes
 
     out_number_vertices = len(vertices)
     out_number_indices = len(indices)
@@ -205,16 +205,36 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
         glb_out.extend(struct.pack('<I', out_bin_bytelength))
         glb_out.extend(struct.pack('<I', 0x004E4942)) # magin number for BIN
 
-    for i in indices:
-        glb_out.extend(struct.pack('<I', i))
+    # print('<%dI' % len(indices))
+    # print(struct.pack('<%dI' % len(indices), *indices))
+    glb_out.extend(struct.pack('<%dI' % len(indices), *indices))
 
     for i in range(indices_bytelength - unpadded_indices_bytelength):
         glb_out.extend(b' ')
 
-    for (v_x, v_y, v_z), _ in sorted(vertices.items(), key=lambda x: x[1]):
-        glb_out.extend(struct.pack('f', v_x)) # magin number for BIN
-        glb_out.extend(struct.pack('f', v_y)) # magin number for BIN
-        glb_out.extend(struct.pack('f', v_z)) # magin number for BIN
+    vertices = dict((v, k) for k,v in vertices.items())
+
+    # glb_out.extend(struct.pack('f',
+    # print([each_v for vertices[v_counter] for v_counter in range(number_vertices)]) # magin number for BIN
+    vertices = [vertices[i] for i in range(number_vertices)]
+    flatten = lambda l: [item for sublist in l for item in sublist]
+
+    # for v_counter in :
+        # v_3f = vertices[v_counter]
+        # all_floats_in_vertices.append(v_3f[0])
+        # all_floats_in_vertices.append(v_3f[1])
+        # all_floats_in_vertices.append(v_3f[2])
+
+    # for v_counter in range(number_vertices):
+    glb_out.extend(struct.pack('%df' % number_vertices*3, *flatten(vertices))) # magin number for BIN
+
+    # for v_counter in range(number_vertices):
+        # glb_out.extend(struct.pack('3f', *vertices[v_counter])) # magin number for BIN
+
+    # for (v_x, v_y, v_z), _ in sorted(vertices.items(), key=lambda x: x[1]):
+        # glb_out.extend(struct.pack('3f', v_x, v_y, v_z)) # magin number for BIN
+        # # glb_out.extend(struct.pack('f', v_y)) # magin number for BIN
+        # # glb_out.extend(struct.pack('f', v_z)) # magin number for BIN
 
     with open(out_bin, "wb") as out:
         out.write(glb_out)
