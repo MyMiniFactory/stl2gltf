@@ -195,13 +195,14 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
         glb_out.extend(struct.pack('<I', out_bin_bytelength))
         glb_out.extend(struct.pack('<I', 0x004E4942)) # magin number for BIN
 
+    indices = indices.astype(np.int32)
     glb_out.extend(indices.tobytes())
 
     for i in range(indices_bytelength - unpadded_indices_bytelength):
         glb_out.extend(b' ')
 
-    # for v_counter in range(number_vertices):
-    glb_out.extend(vertices.tobytes()) # magin number for BIN
+    vertices = vertices.astype(np.float32)
+    glb_out.extend(vertices.tobytes())
 
     with open(out_bin, "wb") as out:
         out.write(glb_out)
@@ -209,6 +210,9 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
     if not is_binary:
         with open(out_gltf, "w") as out:
             out.write(gltf2)
+
+    if is_binary:
+        assert file_len == os.path.getsize(out_bin)
 
     print("Done! Exported to %s" %out_path)
 
