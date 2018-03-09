@@ -91,8 +91,8 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
     else:
         out_bin = out_path
 
-    unpack_12f = struct.Struct("12f").unpack
-    float_12_bytes = float_bytes*12
+    unpack_face = struct.Struct("<12fH").unpack
+    face_bytes = float_bytes*12 + 2
 
     with open(path_to_stl, "rb") as f:
         f.seek(header_bytes) # skip 80 bytes headers
@@ -109,12 +109,13 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
         minz, maxz = [9999999, -9999999]
 
         vertices_length_counter = 0
-        for i in range(number_faces):
-            vs = unpack_12f(f.read(float_12_bytes))
-            # vs = [int(v*100000)/100000 for v in vs]
 
-            for i in range(3, 12, 3): # skip the normal first 3 floats
-                x, y, z = vs[i:i+3]
+        data = struct.unpack("<" + "12fH"*number_faces, f.read())
+        len_data = len(data)
+
+        for i in range(0, len_data, 13):
+            for j in range(3, 12, 3):
+                x, y, z = data[i+j:i+j+3]
 
                 x = int(x*100000)/100000
                 y = int(y*100000)/100000
@@ -122,11 +123,14 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
 
                 tuple_xyz = (x, y, z);
 
-                if (x, y, z) not in vertices:
+                try:
+                    indices.append(vertices[tuple_xyz])
+                except KeyError:
                     vertices[tuple_xyz] = vertices_length_counter
                     vertices_length_counter += 1
+                    indices.append(vertices[tuple_xyz])
 
-                indices.append(vertices[tuple_xyz])
+
 
                 if x < minx: minx = x
                 if x > maxx: maxx = x
@@ -135,7 +139,7 @@ def stl_to_gltf(binary_stl_path, out_path, is_binary):
                 if z < minz: minz = z
                 if z > maxz: maxz = z
 
-            f.seek(spacer_bytes, 1) # skip the spacer
+            # f.seek(spacer_bytes, 1) # skip the spacer
 
     number_vertices = len(vertices)
     vertices_bytelength = number_vertices * vec3_bytes # each vec3 has 3 floats, each float is 4 bytes
