@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #include <chrono>
+#include <assert.h>
 
 int main( int argc, char *argv[] )
 {
@@ -46,8 +47,6 @@ int main( int argc, char *argv[] )
     char *ret = new char[len];
     fbin.read(ret, len);
     std::vector<std::array<float, 3>> all_vertices;
-
-    float tiger = 1.;
 
     for (int i=0;i<num_faces;i+=1) {
         for (int j=0;j<3;j+=1) {
@@ -91,6 +90,13 @@ int main( int argc, char *argv[] )
     for (int i=0; i < num_indices; i++) {
         out_bin.write((char*)&indices[i], 4);
     }
+
+    // TODO: not tested
+    const int require_padding = (num_indices*4 + 3) & ~3 - num_indices*4;
+    for (int i=0; i < require_padding; i++) {
+        out_bin.write(" ", 1); // this looks like problem
+    }
+    assert(require_padding == 0);
 
     for (int i=0; i < num_vertices; i++) {
         out_bin.write((char*)&vertices[i], 4);
