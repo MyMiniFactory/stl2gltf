@@ -28,6 +28,8 @@ int main( int argc, char *argv[] )
     std::uint32_t num_faces;
     fbin.read(reinterpret_cast<char *>(&num_faces), 4);
 
+    const int num_indices = num_faces*3;
+
     struct ArrayHasher {
         std::size_t operator() (const std::array<float, 3> & a) const {
             std::size_t h = 0;
@@ -42,16 +44,16 @@ int main( int argc, char *argv[] )
 
     std::unordered_map< std::array<float, 3>, int, ArrayHasher> _vertices;
     std::uint32_t *indices;
-    indices = (std::uint32_t *) malloc(num_faces * 3 * sizeof(std::uint32_t));
+    indices = (std::uint32_t *) malloc(num_indices * sizeof(std::uint32_t));
 
     size_t len = num_faces*50;
     char *ret = new char[len];
     fbin.read(ret, len);
     std::vector<std::array<float, 3>> all_vertices;
 
+    std::array<float, 3> v;
     for (int i=0;i<num_faces;i+=1) {
         for (int j=0;j<3;j+=1) {
-            std::array<float, 3> v;
             memcpy(&v, &ret[12 + i*50 + j*12], 4*3);
             all_vertices.push_back(v);
         }
@@ -65,7 +67,7 @@ int main( int argc, char *argv[] )
         if ( got == _vertices.end() ) { // not found
             _vertices[v] = vertice_counter;
             indices[i] = vertice_counter;
-            all_vertices[vertice_counter] = v;
+            all_vertices[vertice_counter] = v; // replace the begining of all_vertices since they won't be needed anyways
             vertice_counter++;
 
         } else { // found
@@ -84,7 +86,6 @@ int main( int argc, char *argv[] )
     std::fstream out_bin;
     out_bin.open("out.bin", std::ios::out | std::ios::binary);
 
-    const int num_indices = num_faces*3;
     const int num_vertices = vertice_counter;
 
     for (int i=0; i < num_indices; i++) {
