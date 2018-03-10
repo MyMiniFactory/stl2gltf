@@ -1,12 +1,17 @@
 #include <string>
 #include <fstream>
+#include <iostream>
 #include <math.h>       /* floor */
 #include <array>
 #include <vector>
 #include <unordered_map>
 
+#include <chrono>
+
 int main( int argc, char *argv[] )
 {
+    auto t1 = std::chrono::high_resolution_clock::now();
+
     std::string filepath = "meshes/perfect.stl";
 
     if (argc < 2) {
@@ -22,7 +27,7 @@ int main( int argc, char *argv[] )
     std::uint32_t num_faces;
     fbin.read(reinterpret_cast<char *>(&num_faces), 4);
 
-    struct ArrayHasher { // do it directly on point3f
+    struct ArrayHasher {
         std::size_t operator() (const std::array<float, 3> & a) const {
             std::size_t h = 0;
             for (auto e : a) {
@@ -32,59 +37,75 @@ int main( int argc, char *argv[] )
         }
     };
 
+    auto tread = std::chrono::high_resolution_clock::now();
+
     std::unordered_map< std::array<float, 3>, int, ArrayHasher> _vertices;
-    std::vector<float> vertices;
     std::vector<std::uint32_t> indices;
 
-    int vertice_counter = 0;
-    for (int i=0;i<num_faces;++i) {
-        fbin.seekg(4*3, std::ios_base::cur); // skip normal
-        for (int j=0;j<3;++j) {
-            float x;
-            float y;
-            float z;
-            fbin.read(reinterpret_cast<char *>(&x), 4);
-            fbin.read(reinterpret_cast<char *>(&y), 4);
-            fbin.read(reinterpret_cast<char *>(&z), 4);
+    size_t len = num_faces*50;
+    char *ret = new char[len];
+    fbin.read(ret, len);
+    std::vector<std::array<float, 3>> all_vertices;
 
-            // printf("%f %f %f\n", x, y, z);
+    float tiger = 1.;
 
-            const std::array<float, 3> v = {x, y, z};
-
-            auto got = _vertices.find(v);
-            if ( got == _vertices.end() ) { // not found
-                _vertices[v] = vertice_counter;
-                indices.push_back(vertice_counter);
-                vertice_counter++;
-                vertices.insert(vertices.end(), {x, y, z});
-
-                // printf("vertice_counter %i\n", vertice_counter);
-                // printf("v counter %i\n", _vertices[v]);
-            } else { // found
-                indices.push_back(_vertices[v]);
-                // printf("%i\n", vertices[v]);
-            }
+    for (int i=0;i<num_faces;i+=1) {
+        for (int j=0;j<3;j+=1) {
+            std::array<float, 3> v;
+            memcpy(&v, &ret[12 + i*50 + j*12], 4*3);
+            all_vertices.push_back(v);
         }
-        fbin.seekg(2, std::ios_base::cur); // skip spacer
+    }
+
+    std::vector<float> vertices;
+    int vertice_counter = 0;
+    for (int i=0;i<all_vertices.size();++i) {
+        std::array<float, 3> v = all_vertices[i];
+
+        auto got = _vertices.find(v);
+        if ( got == _vertices.end() ) { // not found
+            _vertices[v] = vertice_counter;
+            indices.push_back(vertice_counter);
+            vertice_counter++;
+            vertices.insert(vertices.end(), std::begin(v), std::end(v));
+
+        } else { // found
+            indices.push_back(_vertices[v]);
+        }
 
     }
+
+    auto tread_end = std::chrono::high_resolution_clock::now();
+    std::cout << "calculation total took "
+        << std::chrono::duration_cast<std::chrono::milliseconds>(tread_end-tread).count()
+        << " milliseconds\n";
+
+    auto twrite = std::chrono::high_resolution_clock::now();
 
     std::fstream out_bin;
     out_bin.open("out.bin", std::ios::out | std::ios::binary);
 
-    const int num_indices = sizeof(indices);
-    const int num_vertices = sizeof(num_vertices);
+    const int num_indices = indices.size();
+    const int num_vertices = vertices.size();
 
-    for (int i; i < num_vertices; i++) {
-        out_bin.write((char*)&vertices[i], 4);
-    }
-
-    for (int i; i < num_indices; i++) {
+    for (int i=0; i < num_indices; i++) {
         out_bin.write((char*)&indices[i], 4);
     }
 
+    for (int i=0; i < num_vertices; i++) {
+        out_bin.write((char*)&vertices[i], 4);
+    }
+
+    auto twrite_end = std::chrono::high_resolution_clock::now();
+    std::cout << "write total took "
+        << std::chrono::duration_cast<std::chrono::milliseconds>(twrite_end-twrite).count()
+        << " milliseconds\n";
 
     printf("number faces %u\n", num_faces);
-    printf("num indices %d\n", sizeof(indices));
-    printf("num vertices %d\n", vertices.size());
+    printf("num indices %d\n", num_indices);
+    printf("num vertices %d\n", num_vertices);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    std::cout << "total took "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
+              << " milliseconds\n";
 }
