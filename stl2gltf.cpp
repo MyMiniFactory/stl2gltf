@@ -41,7 +41,8 @@ int main( int argc, char *argv[] )
     auto tread = std::chrono::high_resolution_clock::now();
 
     std::unordered_map< std::array<float, 3>, int, ArrayHasher> _vertices;
-    std::vector<std::uint32_t> indices;
+    std::uint32_t *indices;
+    indices = (std::uint32_t *) malloc(num_faces * 3 * sizeof(std::uint32_t));
 
     size_t len = num_faces*50;
     char *ret = new char[len];
@@ -56,7 +57,6 @@ int main( int argc, char *argv[] )
         }
     }
 
-    std::vector<float> vertices;
     int vertice_counter = 0;
     for (int i=0;i<all_vertices.size();++i) {
         std::array<float, 3> v = all_vertices[i];
@@ -64,12 +64,12 @@ int main( int argc, char *argv[] )
         auto got = _vertices.find(v);
         if ( got == _vertices.end() ) { // not found
             _vertices[v] = vertice_counter;
-            indices.push_back(vertice_counter);
+            indices[i] = vertice_counter;
+            all_vertices[vertice_counter] = v;
             vertice_counter++;
-            vertices.insert(vertices.end(), std::begin(v), std::end(v));
 
         } else { // found
-            indices.push_back(_vertices[v]);
+            indices[i] = _vertices[v];
         }
 
     }
@@ -84,8 +84,8 @@ int main( int argc, char *argv[] )
     std::fstream out_bin;
     out_bin.open("out.bin", std::ios::out | std::ios::binary);
 
-    const int num_indices = indices.size();
-    const int num_vertices = vertices.size();
+    const int num_indices = num_faces*3;
+    const int num_vertices = vertice_counter;
 
     for (int i=0; i < num_indices; i++) {
         out_bin.write((char*)&indices[i], 4);
@@ -99,10 +99,15 @@ int main( int argc, char *argv[] )
     assert(require_padding == 0);
 
     for (int i=0; i < num_vertices; i++) {
-        out_bin.write((char*)&vertices[i], 4);
+        out_bin.write((char*)&all_vertices[i][0], 4);
+        out_bin.write((char*)&all_vertices[i][1], 4);
+        out_bin.write((char*)&all_vertices[i][2], 4);
     }
 
+    free(indices);
+
     auto twrite_end = std::chrono::high_resolution_clock::now();
+
     std::cout << "write total took "
         << std::chrono::duration_cast<std::chrono::milliseconds>(twrite_end-twrite).count()
         << " milliseconds\n";
@@ -114,4 +119,5 @@ int main( int argc, char *argv[] )
     std::cout << "total took "
               << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
               << " milliseconds\n";
+
 }
