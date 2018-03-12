@@ -47,8 +47,68 @@
             const gltf_json = JSON.stringify(
                 gltf_dict(info[4], info[2], info[2], info[3], info[0], info[1], ...boundary)
             );
-            console.log(gltf_json);
-            console.log(gltf_json.length);
+
+            const out_bin_bytelength = info[4];
+
+            const header_bytelength = 20;
+            const scene_len = gltf_json.length;
+            const padded_scene_len = ((scene_len+ 3) & ~3);
+            const body_offset = padded_scene_len + header_bytelength;
+            const file_no_bin_len = body_offset + 8;
+            const file_len = file_no_bin_len + out_bin_bytelength;
+
+            let glb = new Uint8Array(file_no_bin_len);
+            glb[0] = 0x67; // g
+            glb[1] = 0x6c; // l
+            glb[2] = 0x54; // t
+            glb[3] = 0x46; // f
+
+            glb[4]  = ( 2 ) & 0xFF;
+            glb[5]  = ( 2>>8 ) & 0xFF;
+            glb[6] = ( 2>>16 ) & 0xFF;
+            glb[7] = ( 2>>24 ) & 0xFF;
+
+            glb[8]  = ( file_len ) & 0xFF;
+            glb[9]  = ( file_len>>8 ) & 0xFF;
+            glb[10] = ( file_len>>16 ) & 0xFF;
+            glb[11] = ( file_len>>24 ) & 0xFF;
+            glb[12] = ( padded_scene_len ) & 0xFF;
+            glb[13] = ( padded_scene_len>>8 ) & 0xFF;
+            glb[14] = ( padded_scene_len>>16 ) & 0xFF;
+            glb[15] = ( padded_scene_len>>24 ) & 0xFF;
+
+            // JSON
+            glb[16] = 0x4A; // J
+            glb[17] = 0x53; // S
+            glb[18] = 0x4F; // O
+            glb[19] = 0x4E; // N
+
+            for (let i=0;i<gltf_json.length;i++) {
+                glb[i+header_bytelength] = gltf_json.charCodeAt(i);
+            }
+            for (let i=0;i<padded_scene_len - scene_len;i++) {
+                glb[i+scene_len+header_bytelength] = 0x20;
+            }
+
+            glb[body_offset  ] = ( out_bin_bytelength ) & 0xFF;
+            glb[body_offset+1] = ( out_bin_bytelength>>8 ) & 0xFF;
+            glb[body_offset+2] = ( out_bin_bytelength>>16 ) & 0xFF;
+            glb[body_offset+3] = ( out_bin_bytelength>>24 ) & 0xFF;
+            glb[body_offset+4] = 0x42; // B
+            glb[body_offset+5] = 0x49; // I
+            glb[body_offset+6] = 0x4E; // N
+            glb[body_offset+7] = 0x00; //
+
+            let out_bin = Module['FS_readFile']('out.bin');
+
+            let blob = new Blob([glb, out_bin], {type: 'application/sla'});
+            let url = window.URL.createObjectURL(blob);
+            var download_button = document.getElementById('download');
+            download_button.href = url;
+            download_button.download = stl_name + ".glb";
+
+
+
 
         }
     }
@@ -151,6 +211,6 @@
 <input type="file" onChange="uploaded()" id="fileuploadform"/>
 
 <body>
-    <a id="download"><button disabled>Click to download repaired file</button></a>
+    <a id="download"><button>Click to Download GLB</button></a>
 </body>
 </html>

@@ -91,11 +91,13 @@ int* make_bin(const std::string filepath, int* export_data, float* boundary) {
         out_bin.write((char*)&indices[i], 4);
     }
 
-    // TODO: not tested
-    const int padding_bytelength = (num_indices*4 + 3) & ~3 - num_indices*4;
-    for (int i=0; i < padding_bytelength; i++) {
-        out_bin.write(" ", 1); // this looks like problem
-    }
+    // TODO: make sure padding is not necessary
+    // since indices bytelength are multiple of u32int
+
+    //const int padding_bytelength = (num_indices*4 + 3) & ~3 - num_indices*4;
+    //for (int i=0; i < padding_bytelength; i++) {
+        //out_bin.write(" ", 1); // this looks like problem
+    //}
     // assert(padding_bytelength == 0);
 
     for (int i=0; i < num_vertices; i++) {
@@ -116,9 +118,9 @@ int* make_bin(const std::string filepath, int* export_data, float* boundary) {
 // number_indices, number_vertices, minx, miny, minz, maxx, maxy, maxz
     export_data[0] = num_indices;
     export_data[1] = num_vertices;
-    export_data[2] = indices_bytelength + padding_bytelength;
+    export_data[2] = indices_bytelength;
     export_data[3] = vertices_bytelength;
-    export_data[4] = indices_bytelength + padding_bytelength + vertices_bytelength;
+    export_data[4] = indices_bytelength + vertices_bytelength;
 
     printf("boundary %f %f %f", minx, miny, minz);
     printf("boundary %f %f %f", maxx, maxy, maxz);
