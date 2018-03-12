@@ -1,0 +1,156 @@
+
+<head>
+    <meta charset="UTF-8">
+</head>
+<script async type="text/javascript" src="../a.out.js"></script>
+<script type="text/javascript">
+    function uploaded() {
+        var uploadform = document.getElementById("fileuploadform");
+        var filename = uploadform.files[0].name;
+        var fr = new FileReader();
+        fr.readAsDataURL(uploadform.files[0]);
+
+        fr.onload = function (){
+            var stl_name = filename;
+            var number_indices = 0;
+            let info = new Int32Array([
+                0, // number indices
+                0, // number vertices
+                0, // indices bytelength
+                0, // vertices bytelength
+                0  // total bytelength
+            ]);
+            var info_heapBytes = _arrayToHeap(info);
+
+            let boundary = new Float32Array([
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+            ]);
+            var boundary_heapBytes = _arrayToHeap(boundary);
+
+            var data = atob(fr.result.split(",")[1]); // base64 to Uint8 for emscripten
+            Module['FS_createDataFile'](".", stl_name, data, true, true);
+
+            Module.ccall("make_bin", // c function name
+                    undefined, // return
+                    ["string", "number", "number"], // param
+                    [stl_name, info_heapBytes.byteOffset, boundary_heapBytes.byteOffset]
+            );
+
+            info = new Int32Array(info_heapBytes.buffer, info_heapBytes.byteOffset, info.length);
+            boundary = new Float32Array(boundary_heapBytes.buffer, boundary_heapBytes.byteOffset, boundary.length);
+
+            const gltf_json = JSON.stringify(
+                gltf_dict(info[4], info[2], info[2], info[3], info[0], info[1], ...boundary)
+            );
+            console.log(gltf_json);
+            console.log(gltf_json.length);
+
+        }
+    }
+
+    function _arrayToHeap(typedArray){
+        var numBytes = typedArray.length * typedArray.BYTES_PER_ELEMENT;
+        var ptr = Module._malloc(numBytes);
+        var heapBytes = new Uint8Array(Module.HEAPU8.buffer, ptr, numBytes);
+        heapBytes.set(new Uint8Array(typedArray.buffer));
+        return heapBytes;
+    }
+    function _freeArray(heapBytes){
+        Module._free(heapBytes.byteOffset);
+    }
+
+    function Uint8ToString(u8a){
+      var CHUNK_SZ = 0x8000;
+      var c = [];
+      for (var i=0; i < u8a.length; i+=CHUNK_SZ) {
+          c.push(String.fromCharCode.apply(null, u8a.subarray(i, i+CHUNK_SZ)));
+        }
+        return c.join("");
+    }
+
+    function gltf_dict(
+        total_blength, indices_blength, vertices_boffset, vertices_blength,
+        number_indices, number_vertices, minx, miny, minz, maxx, maxy, maxz
+    ) {
+        return {
+            "scenes" : [
+                {
+                    "nodes" : [ 0 ]
+                }
+            ],
+                "nodes" : [
+                    {
+                        "mesh" : 0
+                    }
+                ],
+                "meshes" : [
+                    {
+                        "primitives" : [ {
+                            "attributes" : {
+                                "POSITION" : 1
+                            },
+                            "indices" : 0
+                        } ]
+                    }
+                ],
+                "buffers" : [
+                    {
+                        "byteLength" : total_blength
+                    }
+                ],
+                "bufferViews" : [
+                    {
+                        "buffer" : 0,
+                        "byteOffset" : 0,
+                        "byteLength" : indices_blength,
+                        "target" : 34963
+                    },
+                    {
+                        "buffer" : 0,
+                        "byteOffset" : vertices_boffset,
+                        "byteLength" : vertices_blength,
+                        "target" : 34962
+                    }
+                ],
+                "accessors" : [
+                    {
+                        "bufferView" : 0,
+                        "byteOffset" : 0,
+                        "componentType" : 5125,
+                        "count" : number_indices,
+                        "type" : "SCALAR",
+                        "max" : [ number_indices - 1 ],
+                        "min" : [ 0 ]
+                    },
+                    {
+                        "bufferView" : 1,
+                        "byteOffset" : 0,
+                        "componentType" : 5126,
+                        "count" : number_vertices,
+                        "type" : "VEC3",
+                        "min" : [minx, miny, minx],
+                        "max" : [maxx, maxy, maxz]
+                    }
+                ],
+                "asset" : {
+                    "version" : "2.0"
+                }
+        } // end of dict
+    }
+
+</script>
+
+<html>
+<head>
+</head>
+<input type="file" onChange="uploaded()" id="fileuploadform"/>
+
+<body>
+    <a id="download"><button disabled>Click to download repaired file</button></a>
+</body>
+</html>

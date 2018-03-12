@@ -1,6 +1,5 @@
 #include <string>
 #include <fstream>
-#include <iostream>
 #include <math.h>       /* floor */
 #include <array>
 #include <vector>
@@ -13,8 +12,8 @@
 
 extern "C" {
 
-void make_bin(const std::string filepath) {
-    // total_blength, indices_blength, vertices_boffset, vertices_blength,
+int* make_bin(const std::string filepath, int* export_data, float* boundary) {
+    printf("memory address for export data %d\n", export_data);
     // number_indices, number_vertices, minx, miny, minz, maxx, maxy, maxz
     auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -25,7 +24,7 @@ void make_bin(const std::string filepath) {
     std::uint32_t num_faces;
     fbin.read(reinterpret_cast<char *>(&num_faces), 4);
 
-    const int num_indices = num_faces*3;
+    const unsigned int num_indices = num_faces*3;
     auto tread = std::chrono::high_resolution_clock::now();
 
     std::uint32_t *indices;
@@ -73,9 +72,7 @@ void make_bin(const std::string filepath) {
     all_vertices.resize(num_vertices);
 
     auto tread_end = std::chrono::high_resolution_clock::now();
-    std::cout << "calculation total took "
-        << std::chrono::duration_cast<std::chrono::milliseconds>(tread_end-tread).count()
-        << " milliseconds\n";
+    printf("calculation total took %lld milliseconds\n", std::chrono::duration_cast<std::chrono::milliseconds>(tread_end-tread).count());
 
     auto twrite = std::chrono::high_resolution_clock::now();
 
@@ -99,7 +96,7 @@ void make_bin(const std::string filepath) {
     for (int i=0; i < padding_bytelength; i++) {
         out_bin.write(" ", 1); // this looks like problem
     }
-    assert(padding_bytelength == 0);
+    // assert(padding_bytelength == 0);
 
     for (int i=0; i < num_vertices; i++) {
         out_bin.write((char*)&all_vertices[i], 12);
@@ -109,17 +106,32 @@ void make_bin(const std::string filepath) {
 
     auto twrite_end = std::chrono::high_resolution_clock::now();
 
-    std::cout << "write total took "
-        << std::chrono::duration_cast<std::chrono::milliseconds>(twrite_end-twrite).count()
-        << " milliseconds\n";
+    printf("write total took %lld milliseconds\n", std::chrono::duration_cast<std::chrono::milliseconds>(twrite_end-twrite).count());
 
     printf("number faces %u\n", num_faces);
     printf("num indices %d\n", num_indices);
     printf("num vertices %d\n", num_vertices);
+
+// total_blength, indices_blength, vertices_boffset, vertices_blength,
+// number_indices, number_vertices, minx, miny, minz, maxx, maxy, maxz
+    export_data[0] = num_indices;
+    export_data[1] = num_vertices;
+    export_data[2] = indices_bytelength + padding_bytelength;
+    export_data[3] = vertices_bytelength;
+    export_data[4] = indices_bytelength + padding_bytelength + vertices_bytelength;
+
+    printf("boundary %f %f %f", minx, miny, minz);
+    printf("boundary %f %f %f", maxx, maxy, maxz);
+    boundary[0] = minx; boundary[1] = miny; boundary[2] = minz;
+    boundary[3] = maxx; boundary[4] = maxy; boundary[5] = maxz;
+
     auto t2 = std::chrono::high_resolution_clock::now();
-    std::cout << "total took "
-        << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
-        << " milliseconds\n";
+
+    printf("total took %lld milliseconds\n", std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count());
+
+
+    printf("memory address for export data %d\n", export_data);
+    return export_data;
 }
 }
 
@@ -134,6 +146,7 @@ int main( int argc, char *argv[] )
         filepath = argv[1];
     }
 
-    make_bin(filepath);
+    // int data[2] = {0, 0};
+    // make_bin(filepath, data);
 
 }
