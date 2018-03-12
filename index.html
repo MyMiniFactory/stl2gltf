@@ -103,13 +103,14 @@
 
             let blob = new Blob([glb, out_bin], {type: 'application/sla'});
             let url = window.URL.createObjectURL(blob);
-            var download_button = document.getElementById('download');
-            download_button.href = url;
-            download_button.download = stl_name + ".glb";
+            var download_a = document.getElementById('download');
+            download_a.href = url;
+            const glb_name = stl_name.slice(0,stl_name.length-4) + ".glb";
+            download_a.download = glb_name;
 
-
-
-
+            var download_button = document.getElementById('download_button');
+            download_button.disabled = false;
+            download_button.innerHTML = "Click to Download " + glb_name;
         }
     }
 
@@ -211,6 +212,6 @@
 <input type="file" onChange="uploaded()" id="fileuploadform"/>
 
 <body>
-    <a id="download"><button>Click to Download GLB</button></a>
+    <a id="download"><button id="download_button" disabled>Click to Download</button></a>
 </body>
 </html>
