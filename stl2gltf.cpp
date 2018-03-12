@@ -6,20 +6,17 @@
 #include <vector>
 #include <unordered_map>
 
+#include <vertex.h>
+
 #include <chrono>
 #include <assert.h>
 
-int main( int argc, char *argv[] )
-{
+extern "C" {
+
+void make_bin(const std::string filepath) {
+    // total_blength, indices_blength, vertices_boffset, vertices_blength,
+    // number_indices, number_vertices, minx, miny, minz, maxx, maxy, maxz
     auto t1 = std::chrono::high_resolution_clock::now();
-
-    std::string filepath = "meshes/perfect.stl";
-
-    if (argc < 2) {
-        printf("not stl file given use default \n");
-    } else {
-        filepath = argv[1];
-    }
 
     std::fstream fbin;
     fbin.open(filepath.c_str(), std::ios::in | std::ios::binary);
@@ -29,52 +26,51 @@ int main( int argc, char *argv[] )
     fbin.read(reinterpret_cast<char *>(&num_faces), 4);
 
     const int num_indices = num_faces*3;
-
-    struct ArrayHasher {
-        std::size_t operator() (const std::array<float, 3> & a) const {
-            std::size_t h = 0;
-            for (auto e : a) {
-                h ^= std::hash<float>{}(e) + 0x9e3779b9 + (h<<6) + (h>>2);
-            }
-            return h;
-        }
-    };
-
     auto tread = std::chrono::high_resolution_clock::now();
 
-    std::unordered_map< std::array<float, 3>, int, ArrayHasher> _vertices;
     std::uint32_t *indices;
     indices = (std::uint32_t *) malloc(num_indices * sizeof(std::uint32_t));
 
     size_t len = num_faces*50;
     char *ret = new char[len];
     fbin.read(ret, len);
-    std::vector<std::array<float, 3>> all_vertices;
+    std::vector<Vertex> all_vertices(num_indices);
+    // indices = (Vertex *) malloc(sizeof(Vertex) * num_indices);
 
-    std::array<float, 3> v;
+    float minx =  999999;
+    float miny =  999999;
+    float minz =  999999;
+    float maxx = -999999;
+    float maxy = -999999;
+    float maxz = -999999;
+
     for (int i=0;i<num_faces;i+=1) {
-        for (int j=0;j<3;j+=1) {
-            memcpy(&v, &ret[12 + i*50 + j*12], 4*3);
-            all_vertices.push_back(v);
+        for (int j=0;j<3;j++) {
+            const int index = i*3+j;
+            memcpy(&all_vertices[index], &ret[12 + i*50 + j*12], 12);
+            all_vertices[index].i = index;
+            // printf("v %f %f %f\n", all_vertices[index].x, all_vertices[index].y, all_vertices[index].z);
         }
     }
 
-    int vertice_counter = 0;
-    for (int i=0;i<all_vertices.size();++i) {
-        std::array<float, 3> v = all_vertices[i];
+    std::sort(all_vertices.begin(), all_vertices.end());
 
-        auto got = _vertices.find(v);
-        if ( got == _vertices.end() ) { // not found
-            _vertices[v] = vertice_counter;
-            indices[i] = vertice_counter;
-            all_vertices[vertice_counter] = v; // replace the begining of all_vertices since they won't be needed anyways
-            vertice_counter++;
-
-        } else { // found
-            indices[i] = _vertices[v];
+    unsigned int num_vertices = 0;
+    for (auto v : all_vertices)
+    {
+        if (!num_vertices || v != all_vertices[num_vertices-1])
+        {
+            all_vertices[num_vertices++] = v;
+            if (v.x < minx) minx = v.x;
+            if (v.x > maxx) maxx = v.x;
+            if (v.y < miny) miny = v.y;
+            if (v.y > maxy) maxy = v.y;
+            if (v.z < minz) minz = v.z;
+            if (v.z > maxz) maxz = v.z;
         }
-
+        indices[v.i] = num_vertices - 1;
     }
+    all_vertices.resize(num_vertices);
 
     auto tread_end = std::chrono::high_resolution_clock::now();
     std::cout << "calculation total took "
@@ -83,26 +79,30 @@ int main( int argc, char *argv[] )
 
     auto twrite = std::chrono::high_resolution_clock::now();
 
+    ////////////////////// calculation done start writing ////////////////////
+// total_blength, indices_blength, vertices_boffset, vertices_blength,
+// number_indices, number_vertices, minx, miny, minz, maxx, maxy, maxz
+
+    const uint32_t indices_bytelength = num_indices*4;
+    const uint32_t vertices_bytelength = num_vertices*3*4;
+
     std::fstream out_bin;
     out_bin.open("out.bin", std::ios::out | std::ios::binary);
 
-    const int num_vertices = vertice_counter;
 
     for (int i=0; i < num_indices; i++) {
         out_bin.write((char*)&indices[i], 4);
     }
 
     // TODO: not tested
-    const int require_padding = (num_indices*4 + 3) & ~3 - num_indices*4;
-    for (int i=0; i < require_padding; i++) {
+    const int padding_bytelength = (num_indices*4 + 3) & ~3 - num_indices*4;
+    for (int i=0; i < padding_bytelength; i++) {
         out_bin.write(" ", 1); // this looks like problem
     }
-    assert(require_padding == 0);
+    assert(padding_bytelength == 0);
 
     for (int i=0; i < num_vertices; i++) {
-        out_bin.write((char*)&all_vertices[i][0], 4);
-        out_bin.write((char*)&all_vertices[i][1], 4);
-        out_bin.write((char*)&all_vertices[i][2], 4);
+        out_bin.write((char*)&all_vertices[i], 12);
     }
 
     free(indices);
@@ -118,7 +118,22 @@ int main( int argc, char *argv[] )
     printf("num vertices %d\n", num_vertices);
     auto t2 = std::chrono::high_resolution_clock::now();
     std::cout << "total took "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
-              << " milliseconds\n";
+        << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
+        << " milliseconds\n";
+}
+}
+
+
+int main( int argc, char *argv[] )
+{
+    std::string filepath = "meshes/perfect.stl";
+
+    if (argc < 2) {
+        printf("not stl file given use default \n");
+    } else {
+        filepath = argv[1];
+    }
+
+    make_bin(filepath);
 
 }
