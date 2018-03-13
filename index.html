@@ -141,7 +141,12 @@
                 download_button.disabled = false;
                 download_button.innerHTML = "Click to Download " + glb_name;
                 download_button.click();
-                put_status("Success")
+
+                if (blob.size < 3145728) {
+                    put_status("Success, you are now share it on facebook!")
+                } else {
+                    put_status("Your stl file is too large, the GLB file is bigger than 3 Mb, cannot share on facebook.")
+                }
 
                 _freeArray(info_heapBytes);
                 _freeArray(boundary_heapBytes);
