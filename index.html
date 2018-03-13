@@ -1,116 +1,151 @@
-
+<!DOCTYPE html>
+<html>
 <head>
     <meta charset="UTF-8">
 </head>
+
+<style>
+
+#dragAndDrop {
+    min-height: 200px;
+    white-space: pre;
+    border: 1px dashed black;
+    border-radius: 10px;
+}
+
+#info {
+    width:100%
+    display: -webkit-flex;
+    display: flex;
+}
+
+</style>
 <script async type="text/javascript" src="../a.out.js"></script>
 <script type="text/javascript">
-    function uploaded() {
-        var uploadform = document.getElementById("fileuploadform");
-        var filename = uploadform.files[0].name;
-        var fr = new FileReader();
-        fr.readAsDataURL(uploadform.files[0]);
+    function uploaded(file) {
+        if (file === undefined) { // via upload button
+            var uploadform = document.getElementById("fileuploadform");
+            file = uploadform.files[0];
+        }
 
-        fr.onload = function (){
-            var stl_name = filename;
-            var number_indices = 0;
-            let info = new Int32Array([
-                0, // number indices
-                0, // number vertices
-                0, // indices bytelength
-                0, // vertices bytelength
-                0  // total bytelength
-            ]);
-            var info_heapBytes = _arrayToHeap(info);
+        check_file(file, function(){check_file_success()});
 
-            let boundary = new Float32Array([
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0
-            ]);
-            var boundary_heapBytes = _arrayToHeap(boundary);
+        function check_file_success() {
 
-            var data = atob(fr.result.split(",")[1]); // base64 to Uint8 for emscripten
-            Module['FS_createDataFile'](".", stl_name, data, true, true);
+            put_status("Converting by your browser");
 
-            Module.ccall("make_bin", // c function name
-                    undefined, // return
-                    ["string", "number", "number"], // param
-                    [stl_name, info_heapBytes.byteOffset, boundary_heapBytes.byteOffset]
-            );
+            var uploadform = document.getElementById("fileuploadform");
+            var filename = file.name;
+            var fr = new FileReader();
+            fr.readAsDataURL(file);
 
-            info = new Int32Array(info_heapBytes.buffer, info_heapBytes.byteOffset, info.length);
-            boundary = new Float32Array(boundary_heapBytes.buffer, boundary_heapBytes.byteOffset, boundary.length);
+            fr.onload = function (){
+                var stl_name = filename;
+                var number_indices = 0;
+                let info = new Int32Array([
+                    0, // number indices
+                    0, // number vertices
+                    0, // indices bytelength
+                    0, // vertices bytelength
+                    0  // total bytelength
+                ]);
+                var info_heapBytes = _arrayToHeap(info);
 
-            const gltf_json = JSON.stringify(
-                gltf_dict(info[4], info[2], info[2], info[3], info[0], info[1], ...boundary)
-            );
+                let boundary = new Float32Array([
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ]);
+                var boundary_heapBytes = _arrayToHeap(boundary);
 
-            const out_bin_bytelength = info[4];
+                var data = atob(fr.result.split(",")[1]); // base64 to Uint8 for emscripten
+                Module['FS_createDataFile'](".", stl_name, data, true, true);
 
-            const header_bytelength = 20;
-            const scene_len = gltf_json.length;
-            const padded_scene_len = ((scene_len+ 3) & ~3);
-            const body_offset = padded_scene_len + header_bytelength;
-            const file_no_bin_len = body_offset + 8;
-            const file_len = file_no_bin_len + out_bin_bytelength;
+                Module.ccall("make_bin", // c function name
+                        undefined, // return
+                        ["string", "number", "number"], // param
+                        [stl_name, info_heapBytes.byteOffset, boundary_heapBytes.byteOffset]
+                );
 
-            let glb = new Uint8Array(file_no_bin_len);
-            glb[0] = 0x67; // g
-            glb[1] = 0x6c; // l
-            glb[2] = 0x54; // t
-            glb[3] = 0x46; // f
+                info = new Int32Array(info_heapBytes.buffer, info_heapBytes.byteOffset, info.length);
+                boundary = new Float32Array(boundary_heapBytes.buffer, boundary_heapBytes.byteOffset, boundary.length);
 
-            glb[4]  = ( 2 ) & 0xFF;
-            glb[5]  = ( 2>>8 ) & 0xFF;
-            glb[6] = ( 2>>16 ) & 0xFF;
-            glb[7] = ( 2>>24 ) & 0xFF;
+                const gltf_json = JSON.stringify(
+                    gltf_dict(info[4], info[2], info[2], info[3], info[0], info[1], ...boundary)
+                );
 
-            glb[8]  = ( file_len ) & 0xFF;
-            glb[9]  = ( file_len>>8 ) & 0xFF;
-            glb[10] = ( file_len>>16 ) & 0xFF;
-            glb[11] = ( file_len>>24 ) & 0xFF;
-            glb[12] = ( padded_scene_len ) & 0xFF;
-            glb[13] = ( padded_scene_len>>8 ) & 0xFF;
-            glb[14] = ( padded_scene_len>>16 ) & 0xFF;
-            glb[15] = ( padded_scene_len>>24 ) & 0xFF;
+                const out_bin_bytelength = info[4];
 
-            // JSON
-            glb[16] = 0x4A; // J
-            glb[17] = 0x53; // S
-            glb[18] = 0x4F; // O
-            glb[19] = 0x4E; // N
+                const header_bytelength = 20;
+                const scene_len = gltf_json.length;
+                const padded_scene_len = ((scene_len+ 3) & ~3);
+                const body_offset = padded_scene_len + header_bytelength;
+                const file_no_bin_len = body_offset + 8;
+                const file_len = file_no_bin_len + out_bin_bytelength;
 
-            for (let i=0;i<gltf_json.length;i++) {
-                glb[i+header_bytelength] = gltf_json.charCodeAt(i);
+                let glb = new Uint8Array(file_no_bin_len);
+                glb[0] = 0x67; // g
+                glb[1] = 0x6c; // l
+                glb[2] = 0x54; // t
+                glb[3] = 0x46; // f
+
+                glb[4]  = ( 2 ) & 0xFF;
+                glb[5]  = ( 2>>8 ) & 0xFF;
+                glb[6] = ( 2>>16 ) & 0xFF;
+                glb[7] = ( 2>>24 ) & 0xFF;
+
+                glb[8]  = ( file_len ) & 0xFF;
+                glb[9]  = ( file_len>>8 ) & 0xFF;
+                glb[10] = ( file_len>>16 ) & 0xFF;
+                glb[11] = ( file_len>>24 ) & 0xFF;
+                glb[12] = ( padded_scene_len ) & 0xFF;
+                glb[13] = ( padded_scene_len>>8 ) & 0xFF;
+                glb[14] = ( padded_scene_len>>16 ) & 0xFF;
+                glb[15] = ( padded_scene_len>>24 ) & 0xFF;
+
+                // JSON
+                glb[16] = 0x4A; // J
+                glb[17] = 0x53; // S
+                glb[18] = 0x4F; // O
+                glb[19] = 0x4E; // N
+
+                for (let i=0;i<gltf_json.length;i++) {
+                    glb[i+header_bytelength] = gltf_json.charCodeAt(i);
+                }
+                for (let i=0;i<padded_scene_len - scene_len;i++) {
+                    glb[i+scene_len+header_bytelength] = 0x20;
+                }
+
+                glb[body_offset  ] = ( out_bin_bytelength ) & 0xFF;
+                glb[body_offset+1] = ( out_bin_bytelength>>8 ) & 0xFF;
+                glb[body_offset+2] = ( out_bin_bytelength>>16 ) & 0xFF;
+                glb[body_offset+3] = ( out_bin_bytelength>>24 ) & 0xFF;
+                glb[body_offset+4] = 0x42; // B
+                glb[body_offset+5] = 0x49; // I
+                glb[body_offset+6] = 0x4E; // N
+                glb[body_offset+7] = 0x00; //
+
+                let out_bin = Module['FS_readFile']('out.bin');
+
+                let blob = new Blob([glb, out_bin], {type: 'application/sla'});
+                let url = window.URL.createObjectURL(blob);
+                var download_a = document.getElementById('download');
+                download_a.href = url;
+                const glb_name = stl_name.slice(0,stl_name.length-4) + ".glb";
+                download_a.download = glb_name;
+
+                var download_button = document.getElementById('download_button');
+                download_button.disabled = false;
+                download_button.innerHTML = "Click to Download " + glb_name;
+                download_button.click();
+                put_status("Success")
+
+                _freeArray(info_heapBytes);
+                _freeArray(boundary_heapBytes);
             }
-            for (let i=0;i<padded_scene_len - scene_len;i++) {
-                glb[i+scene_len+header_bytelength] = 0x20;
-            }
-
-            glb[body_offset  ] = ( out_bin_bytelength ) & 0xFF;
-            glb[body_offset+1] = ( out_bin_bytelength>>8 ) & 0xFF;
-            glb[body_offset+2] = ( out_bin_bytelength>>16 ) & 0xFF;
-            glb[body_offset+3] = ( out_bin_bytelength>>24 ) & 0xFF;
-            glb[body_offset+4] = 0x42; // B
-            glb[body_offset+5] = 0x49; // I
-            glb[body_offset+6] = 0x4E; // N
-            glb[body_offset+7] = 0x00; //
-
-            let out_bin = Module['FS_readFile']('out.bin');
-
-            let blob = new Blob([glb, out_bin], {type: 'application/sla'});
-            let url = window.URL.createObjectURL(blob);
-            var download_a = document.getElementById('download');
-            download_a.href = url;
-            const glb_name = stl_name.slice(0,stl_name.length-4) + ".glb";
-            download_a.download = glb_name;
-
-            var download_button = document.getElementById('download_button');
-            download_button.disabled = false;
-            download_button.innerHTML = "Click to Download " + glb_name;
         }
     }
 
@@ -204,14 +239,75 @@
         } // end of dict
     }
 
+    function check_file(file, success_cb)
+    {
+        put_status("Checking file");
+        const filename = file.name;
+        const extension = filename.toLowerCase().slice(filename.lastIndexOf(".")+1, filename.length);
+        if (extension!=="stl") {
+            put_status("Please upload an stl file not "+ extension);
+            return;
+        }
+        var reader = new FileReader();
+        var blob = file.slice(0, 5); // read the file size
+        reader.readAsText(blob);
+        reader.onload = function() {
+            console.log(reader.result);
+            if (reader.result === "solid") {
+                put_status("Support for ACSII STL is coming...");
+                return;
+            } else {
+                success_cb();
+            }
+        }
+    }
+
+    function dodrop(event)
+    {
+        var dt = event.dataTransfer;
+        var file = dt.files[0];
+        var filename = file.name;
+        put_status("Converting " + filename + " to GLB using WebAssembly.");
+        uploaded(file);
+    }
+
+    function put_status(text)
+    {
+        document.getElementById("status").textContent = text;
+    }
 </script>
 
-<html>
-<head>
-</head>
-<input type="file" onChange="uploaded()" id="fileuploadform"/>
-
 <body>
+    <h1>Binary STL to GLB Converter</h1>
+    <div id="dragAndDrop"
+         ondragenter="event.stopPropagation(); event.preventDefault();"
+         ondragover="event.stopPropagation(); event.preventDefault();"
+         ondrop="event.stopPropagation(); event.preventDefault();
+         dodrop(event);">
+        <span>Drag and drop binary STL files here or <input type="file" onChange="uploaded()" id="fileuploadform"/></span>
+        <span></span>
+        <span>Status: <span id="status">Waiting for upload</span>
+    </div>
     <a id="download"><button id="download_button" disabled>Click to Download</button></a>
+    <div id="info">
+        <div>
+            <h3>Note</h3>
+            <ul>
+                <li>Browser Based (WebAssembly), No Backend</li>
+                <li>Facebook has a 3 Mb limit for GLB, make sure your stl is smaller than 8 Mb</li>
+                <li>Work with stl less than 45 Mb</li>
+            </ul>
+        </div>
+        <div>
+            <h3>Upcoming features</h3>
+            <ul>
+                <li>Support for ASCII STL file</li>
+                <li>Tell me on tiger AT myminifactory dotcom...</li>
+            </ul>
+        </div>
+    </div>
+
+    <a href="https://github.com/MyMiniFactory/stl2gltf"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_orange_ff7600.png" alt="Fork me on GitHub"></a>
 </body>
+
 </html>
