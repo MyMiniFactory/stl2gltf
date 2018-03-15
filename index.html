@@ -39,9 +39,7 @@
             file = uploadform.files[0];
         }
 
-        // check_file(file, function(){check_file_success()});
-
-        check_file_success();
+        check_file(file, function(){check_file_success()});
 
         function check_file_success() {
 
@@ -267,20 +265,8 @@
             put_status("Please upload an stl file not "+ extension);
             return;
         }
-        var reader = new FileReader();
-        var blob = file.slice(80, 84); // read the file size
-        reader.readAsArrayBuffer(blob);
-        reader.onloadend = function() {
-            const number_faces_bytes = new Uint8Array(reader.result);
-            const number_faces = (number_faces_bytes[0])+(number_faces_bytes[1]<<8)+(number_faces_bytes[2]<<16)+(number_faces_bytes[3]<<32);
-            const assume_bytes = number_faces*50 + 80 + 4;
-            if (assume_bytes !== file.size) {
-                put_status("Support for ACSII STL is coming...");
-                return;
-            } else {
-                success_cb();
-            }
-        }
+
+        success_cb();
     }
 
     function dodrop(event)
@@ -299,13 +285,13 @@
 </script>
 
 <body>
-    <h1>Binary STL to GLB Converter</h1>
+    <h1>STL to GLB Converter</h1>
     <div id="dragAndDrop"
          ondragenter="event.stopPropagation(); event.preventDefault();"
          ondragover="event.stopPropagation(); event.preventDefault();"
          ondrop="event.stopPropagation(); event.preventDefault();
          dodrop(event);">
-        <span>Drag and drop binary STL files here or <input type="file" onChange="uploaded()" id="fileuploadform"/></span>
+        <span>Drag and drop STL files here or <input type="file" onChange="uploaded()" id="fileuploadform"/></span>
         <span></span>
         <span>Status: <span id="status">Waiting for upload</span>
     </div>
@@ -316,14 +302,15 @@
             <ul>
                 <li>Browser Based (WebAssembly), No Backend</li>
                 <li>Facebook has a 3 Mb limit for GLB, make sure your stl is smaller than 8 Mb</li>
-                <li>Work with stl less than 45 Mb</li>
+                <li>Work with ASCII/Binary stl less than 45 Mb</li>
             </ul>
         </div>
         <div>
             <h3>Upcoming features</h3>
             <ul>
-                <li>Support for ASCII STL file</li>
+                <li>Face Color Picker (Suggested by Mark)</li>
                 <li>Tell me on tiger AT myminifactory dotcom...</li>
+                <li>Done <strike>Support for ASCII</strike></li>
             </ul>
         </div>
     </div>
