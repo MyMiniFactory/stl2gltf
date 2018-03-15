@@ -19,7 +19,30 @@ inline std::string trim(std::string& str)
     return str;
 }
 
+inline Vertex get_vector(std::string& str)
+{
+    // "vertex float float float"
+    auto space0 = str.find_first_of(' ');
+    str.erase(0, space0); // remove "vertex"
+    str.erase(0, str.find_first_not_of(' ')); //prefixing spaces
+    auto space1 = str.find_first_of(' ');
+
+    float x = std::stof(str.substr(0, space1));
+
+    str.erase(0, space1+1); // remove x
+    str.erase(0, str.find_first_not_of(' ')); //prefixing spaces
+
+    auto space2 = str.find_last_of(' ');
+
+    Vertex v(x,
+        std::stof(str.substr(0, space2)),
+        std::stof(str.substr(space2, str.size()))
+    );
+    return v;
+}
+
 std::vector<Vertex> load_binary(const std::string filepath) {
+    printf("loading binary\n");
     std::fstream fbin;
     fbin.open(filepath.c_str(), std::ios::in | std::ios::binary);
     fbin.seekg(80);
@@ -38,9 +61,10 @@ std::vector<Vertex> load_binary(const std::string filepath) {
         for (int j=0;j<3;j++) {
             const int index = i*3+j;
             std::memcpy(&all_vertices[index], &ret[12 + i*50 + j*12], 12);
-            all_vertices[index].i = index;
         }
     }
+
+    fbin.close();
 
     return all_vertices;
 }
@@ -57,21 +81,11 @@ std::vector<Vertex> load_ascii(const std::string filepath) {
     while (!file.eof()) {
         std::getline(file, line);
         line = trim(line);
-        // std::cout << line;
         if (line.rfind("vertex", 0) == 0) {
-            printf("----hello\n");
-            // std::string v_stream;
-            // std::getline(file, line, ' ');
-            // std::cout << line;
-
-            // std::getline(file, line, ' ');
-            // std::cout << line;
-
-            // std::getline(file, line, ' ');
-            // std::cout << line;
-            // std::string v_string = str(v_stream.begin(), v_stream.end());
+            all_vertices.push_back(get_vector(line));
         }
     }
+    file.close();
 
     return all_vertices;
 }
@@ -86,28 +100,28 @@ std::vector<Vertex> load_stl(const std::string filepath) {
         line = trim(line);
         if (line.rfind("facet", 0) == 0)
         {
+            file.close();
             return load_ascii(filepath);
         }
     }
+    file.close();
     return load_binary(filepath);
 }
 
 extern "C" {
 
 int* make_bin(const std::string filepath, int* export_data, float* boundary) {
-    printf("hello \n");
     auto t1 = std::chrono::high_resolution_clock::now();
 
     auto all_vertices = load_stl(filepath.c_str());
-    const uint32_t num_faces = all_vertices.size();
-    const uint32_t num_indices = all_vertices.size()*3;
+    const uint32_t num_indices = all_vertices.size();
+    for (int c=0;c<all_vertices.size();c++)
+        all_vertices[c].i = c;
 
     std::uint32_t *indices;
     indices = (std::uint32_t *) malloc(num_indices * sizeof(std::uint32_t));
-    printf("Hello\n");
 
     std::sort(all_vertices.begin(), all_vertices.end());
-    printf("Hello\n");
 
     float minx =  999999;
     float miny =  999999;
@@ -161,6 +175,7 @@ int* make_bin(const std::string filepath, int* export_data, float* boundary) {
     for (int i=0; i < num_vertices; i++) {
         out_bin.write((char*)&all_vertices[i], 12);
     }
+    out_bin.close();
 
     free(indices);
 
@@ -168,14 +183,12 @@ int* make_bin(const std::string filepath, int* export_data, float* boundary) {
 
     // printf("write total took %lld milliseconds\n", std::chrono::duration_cast<std::chrono::milliseconds>(twrite_end-twrite).count());
 
-    printf("number faces %u\n", num_faces);
     printf("num indices %d\n", num_indices);
     printf("num vertices %d\n", num_vertices);
 
 // total_blength, indices_blength, vertices_boffset, vertices_blength,
 // number_indices, number_vertices, minx, miny, minz, maxx, maxy, maxz
     export_data[0] = num_indices;
-    printf("num vertices %d\n", num_vertices);
     export_data[1] = num_vertices;
     export_data[2] = indices_bytelength;
     export_data[3] = vertices_bytelength;
