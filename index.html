@@ -102,6 +102,12 @@
             fr.readAsDataURL(file);
 
             fr.onload = function (){
+
+                if (filename === GLOBAL.stl_name) { // user upload the same file as last one
+                    download_glb();
+                    return;
+                }
+
                 var stl_name = filename;
                 var number_indices = 0;
                 let info = new Int32Array([
