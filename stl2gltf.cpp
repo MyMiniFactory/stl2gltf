@@ -6,8 +6,6 @@
 
 #include <vertex.h>
 
-#include <chrono>
-// #include <assert.h>
 #include <algorithm>
 #include <iostream>
 
@@ -110,8 +108,7 @@ std::vector<Vertex> load_stl(const std::string filepath) {
 
 extern "C" {
 
-int* make_bin(const std::string filepath, int* export_data, float* boundary) {
-    auto t1 = std::chrono::high_resolution_clock::now();
+void make_bin(const std::string filepath) {
 
     auto all_vertices = load_stl(filepath.c_str());
     const uint32_t num_indices = all_vertices.size();
@@ -186,26 +183,25 @@ int* make_bin(const std::string filepath, int* export_data, float* boundary) {
     printf("num indices %d\n", num_indices);
     printf("num vertices %d\n", num_vertices);
 
-// total_blength, indices_blength, vertices_boffset, vertices_blength,
-// number_indices, number_vertices, minx, miny, minz, maxx, maxy, maxz
-    export_data[0] = num_indices;
-    export_data[1] = num_vertices;
-    export_data[2] = indices_bytelength;
-    export_data[3] = vertices_bytelength;
-    export_data[4] = indices_bytelength + vertices_bytelength;
+    // total_blength, indices_blength, vertices_boffset, vertices_blength,
+    // number_indices, number_vertices, minx, miny, minz, maxx, maxy, maxz
+    std::fstream gltf_data;
+    gltf_data.open("data.txt", std::ios::out);
+    gltf_data << num_indices << " ";
+    gltf_data << num_vertices << " ";
+    gltf_data << indices_bytelength << " ";
+    gltf_data << vertices_bytelength << " ";
+    gltf_data << indices_bytelength + vertices_bytelength << " ";
+    gltf_data << minx << " ";
+    gltf_data << miny << " ";
+    gltf_data << minz << " ";
+    gltf_data << maxx << " ";
+    gltf_data << maxy << " ";
+    gltf_data << maxz;
+    gltf_data.close();
 
     printf("boundary %f %f %f\n", minx, miny, minz);
     printf("boundary %f %f %f\n", maxx, maxy, maxz);
-    boundary[0] = minx; boundary[1] = miny; boundary[2] = minz;
-    boundary[3] = maxx; boundary[4] = maxy; boundary[5] = maxz;
-
-    // auto t2 = std::chrono::high_resolution_clock::now();
-
-    // printf("total took %lld milliseconds\n", std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count());
-
-
-    printf("memory address for export data %d\n", export_data);
-    return export_data;
 }
 }
 
@@ -220,8 +216,5 @@ int main( int argc, char *argv[] )
         filepath = argv[1];
     }
 
-    int data[5] = {0, 0, 0, 0, 0};
-    float boundary[6] = {0, 0, 0, 0, 0, 0};
-    make_bin(filepath, data, boundary);
-
+    make_bin(filepath);
 }

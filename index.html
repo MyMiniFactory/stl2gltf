@@ -106,49 +106,41 @@
                 if (filename === GLOBAL.stl_name) { // user upload the same file as last one
                     download_glb();
                     return;
-                }
+                } // TODO; unlink old file
 
                 var stl_name = filename;
-                var number_indices = 0;
-                let info = new Int32Array([
-                    0, // number indices
-                    0, // number vertices
-                    0, // indices bytelength
-                    0, // vertices bytelength
-                    0  // total bytelength
-                ]);
-                var info_heapBytes = _arrayToHeap(info);
-
-                let boundary = new Float32Array([
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0
-                ]);
-                var boundary_heapBytes = _arrayToHeap(boundary);
 
                 var data = atob(fr.result.split(",")[1]); // base64 to Uint8 for emscripten
                 Module['FS_createDataFile'](".", stl_name, data, true, true);
 
-                Module.ccall("make_bin", // c function name
-                        undefined, // return
-                        ["string", "number", "number"], // param
-                        [stl_name, info_heapBytes.byteOffset, boundary_heapBytes.byteOffset]
+                var what = Module.ccall("make_bin", // c function name
+                        "number", // return
+                        ["string"], // param
+                        [stl_name]
                 );
 
-                info = new Int32Array(info_heapBytes.buffer, info_heapBytes.byteOffset, info.length);
-                boundary = new Float32Array(boundary_heapBytes.buffer, boundary_heapBytes.byteOffset, boundary.length);
-
-                GLOBAL.info = info.slice();
-                GLOBAL.boundary = boundary.slice();
+                // Using a file to output data from c++ to js
+                // because if I use a pointer to array, if memory grow in wasm,
+                // this array will be in a different place
+                // then the pointer will be pointing to a wrong memory address
+                let out_data = Module['FS_readFile']('data.txt', { encoding: 'utf8'});
+                out_data = out_data.split(" ");
+                console.log(out_data)
+                GLOBAL.number_indices = parseInt(out_data[0]);
+                GLOBAL.number_vertices = parseInt(out_data[1]);
+                GLOBAL.indices_blength = parseInt(out_data[2]);
+                GLOBAL.vertices_blength = parseInt(out_data[3]);
+                GLOBAL.total_blength = parseInt(out_data[4]);
+                GLOBAL.minx = parseFloat(out_data[5]);
+                GLOBAL.miny = parseFloat(out_data[6]);
+                GLOBAL.minz = parseFloat(out_data[7]);
+                GLOBAL.maxx = parseFloat(out_data[8]);
+                GLOBAL.maxy = parseFloat(out_data[9]);
+                GLOBAL.maxz = parseFloat(out_data[10]);
                 GLOBAL.stl_name = stl_name;
 
+                console.log(GLOBAL)
                 download_glb();
-
-                _freeArray(info_heapBytes);
-                _freeArray(boundary_heapBytes);
             }
         }
     }
@@ -269,20 +261,31 @@
         } else {
         }
 
-        const info = GLOBAL.info;
-        const boundary = GLOBAL.boundary;
         const stl_name = GLOBAL.stl_name;
         const color = GLOBAL.color_0to1;
 
+        const total_blength = GLOBAL.total_blength;
+        const indices_blength = GLOBAL.indices_blength;
+        const vertices_boffset = GLOBAL.indices_blength;
+        const vertices_blength = GLOBAL.vertices_blength;
+        const number_indices = GLOBAL.number_indices;
+        const number_vertices = GLOBAL.number_vertices;
+        const minx = GLOBAL.minx;
+        const miny = GLOBAL.miny;
+        const minz = GLOBAL.minz;
+        const maxx = GLOBAL.maxx;
+        const maxy = GLOBAL.maxy;
+        const maxz = GLOBAL.maxz;
+
         const gltf_json = JSON.stringify(
-            gltf_dict(info[4], info[2], info[2], info[3], info[0], info[1],
-                      boundary[0], boundary[1], boundary[2],
-                      boundary[3], boundary[4],boundary[5],
-                      color[0], color[1], color[2]
+            gltf_dict(
+                total_blength, indices_blength, vertices_boffset, vertices_blength,
+                number_indices, number_vertices, minx, miny, minz, maxx, maxy, maxz,
+                color[0], color[1], color[2]
             )
         );
 
-        const out_bin_bytelength = info[4];
+        const out_bin_bytelength = total_blength;
 
         const header_bytelength = 20;
         const scene_len = gltf_json.length;
