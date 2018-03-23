@@ -67,8 +67,6 @@
                     this.color[3]
             ];
         },
-        info: undefined,
-        boundary: undefined,
         stl_name: undefined
     };
 
@@ -99,6 +97,10 @@
         if (file === undefined) { // via upload button
             var uploadform = document.getElementById("fileuploadform");
             file = uploadform.files[0];
+
+            // this helps to force trigger even if user upload the same file
+            // https://stackoverflow.com/a/12102992/5260518
+            this.value = null;
         }
 
         check_file(file, function(){check_file_success()});
@@ -114,18 +116,24 @@
 
             fr.onload = function (){
 
+                console.log(filename);
+
                 if (filename === GLOBAL.stl_name) { // user upload the same file as last one
+                    console.log("same stl file");
                     download_glb();
                     return;
-                } // TODO; unlink old file
+                } else if (GLOBAL.stl_name !== undefined) { // not same file rm old file
+                    console.log("new filename ", filename, "unlink", GLOBAL.stl_name);
+                    Module['FS_unlink'](GLOBAL.stl_name);
+                }
 
                 var stl_name = filename;
 
                 var data = atob(fr.result.split(",")[1]); // base64 to Uint8 for emscripten
                 Module['FS_createDataFile'](".", stl_name, data, true, true);
 
-                var what = Module.ccall("make_bin", // c function name
-                        "number", // return
+                Module.ccall("make_bin", // c function name
+                        undefined, // return
                         ["string"], // param
                         [stl_name]
                 );
@@ -136,7 +144,6 @@
                 // then the pointer will be pointing to a wrong memory address
                 let out_data = Module['FS_readFile']('data.txt', { encoding: 'utf8'});
                 out_data = out_data.split(" ");
-                console.log(out_data)
                 GLOBAL.number_indices = parseInt(out_data[0]);
                 GLOBAL.number_vertices = parseInt(out_data[1]);
                 GLOBAL.indices_blength = parseInt(out_data[2]);
@@ -149,31 +156,9 @@
                 GLOBAL.maxy = parseFloat(out_data[9]);
                 GLOBAL.maxz = parseFloat(out_data[10]);
                 GLOBAL.stl_name = stl_name;
-
-                console.log(GLOBAL)
                 download_glb();
             }
         }
-    }
-
-    function _arrayToHeap(typedArray){
-        var numBytes = typedArray.length * typedArray.BYTES_PER_ELEMENT;
-        var ptr = Module._malloc(numBytes);
-        var heapBytes = new Uint8Array(Module.HEAPU8.buffer, ptr, numBytes);
-        heapBytes.set(new Uint8Array(typedArray.buffer));
-        return heapBytes;
-    }
-    function _freeArray(heapBytes){
-        Module._free(heapBytes.byteOffset);
-    }
-
-    function Uint8ToString(u8a){
-      var CHUNK_SZ = 0x8000;
-      var c = [];
-      for (var i=0; i < u8a.length; i+=CHUNK_SZ) {
-          c.push(String.fromCharCode.apply(null, u8a.subarray(i, i+CHUNK_SZ)));
-        }
-        return c.join("");
     }
 
     function gltf_dict(
@@ -411,15 +396,15 @@
         <div>
             <h3>Note</h3>
             <ul>
-                <li>Browser Based (WebAssembly), No Backend</li>
+                <li>Browser Based (WebAssembly), No Backend/Server/Cloud, your file won't leave your browser</li>
                 <li>Facebook has a 3 Mb limit for GLB, make sure your stl is smaller than 8 Mb</li>
-                <li>Work with ASCII/Binary stl less than 45 Mb</li>
             </ul>
         </div>
         <div>
             <h3>Upcoming features</h3>
             <ul>
                 <li><a href="https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification">WASM Mesh Simplification</a> if stl file is too big to share</li>
+                <li>Add vertex normal for better mobile support</li>
                 <li>Tell me on tiger AT myminifactory dotcom...</li>
                 <li>Done <strike>Support for ASCII</strike></li>
                 <li>Done <strike>Face Color Picker</strike> (Suggested by Mark)</li>
