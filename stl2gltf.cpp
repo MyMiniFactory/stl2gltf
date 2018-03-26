@@ -108,6 +108,15 @@ std::vector<Vertex> load_stl(const std::string filepath) {
 
 extern "C" {
 
+void new_make_bin(uint8_t* buf, int size) {
+    printf("new make bin size unsigned char %d\n", size);
+    printf("%d ", buf[0]);
+    for (int i=0;i<100;i++) {
+        printf("%d ", buf[i]);
+    }
+    printf("\nfinished\n");
+}
+/*
 void make_bin(const std::string filepath) {
 
     auto all_vertices = load_stl(filepath.c_str());
@@ -203,18 +212,19 @@ void make_bin(const std::string filepath) {
     printf("boundary %f %f %f\n", minx, miny, minz);
     printf("boundary %f %f %f\n", maxx, maxy, maxz);
 }
+*/
 }
 
 
 int main( int argc, char *argv[] )
 {
-    std::string filepath = "meshes/perfect.stl";
+    // std::string filepath = "meshes/perfect.stl";
 
-    if (argc < 2) {
-        printf("not stl file given use default \n");
-    } else {
-        filepath = argv[1];
-    }
+    // if (argc < 2) {
+        // printf("not stl file given use default \n");
+    // } else {
+        // filepath = argv[1];
+    // }
 
-    make_bin(filepath);
+    // make_bin(filepath);
 }

@@ -14,7 +14,7 @@
     gtag('config', 'UA-115758488-1');
 </script>
 
-<script async type="text/javascript" src="./a.out.js"></script>
+<!-- <script async type="text/javascript" src="./a.out.js"></script> -->
 
 
 <style>
@@ -51,6 +51,18 @@
 
 <script type="text/javascript">
     `use strict`;
+    var worker = new Worker('worker.js');
+
+    worker.onmessage = function(e) {
+        console.log("get back message")
+        console.log(e.data); // e.data should be an array of ArrayBuffers.
+    };
+
+    worker.onerror = function(e) {
+        document.querySelector('#error').textContent = [
+            'ERROR: Line ', e.lineno, ' in ', e.filename, ': ', e.message].join('');
+    };
+
 
     let GLOBAL = {
         color : [150, 150, 150, 1],
@@ -103,6 +115,8 @@
             this.value = null;
         }
 
+        worker.postMessage(file);
+        /*
         check_file(file, function(){check_file_success()});
 
         function check_file_success() {
@@ -158,7 +172,8 @@
                 GLOBAL.stl_name = stl_name;
                 download_glb();
             }
-        }
+        } // check file success
+        */
     }
 
     function gltf_dict(
