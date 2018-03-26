@@ -67,6 +67,35 @@ std::vector<Vertex> load_binary(const std::string filepath) {
     return all_vertices;
 }
 
+std::vector<Vertex> load_binary(uint8_t* buf) {
+    printf("loading binary from byteArray\n");
+
+    std::uint32_t num_faces;
+    std::memcpy(&num_faces, &buf[80], 4);
+    printf("num faces %d\n", num_faces);
+
+    const unsigned int num_indices = num_faces*3;
+    std::vector<Vertex> all_vertices(num_indices);
+
+    for (int i=0;i<num_faces;i+=1) {
+        for (int j=0;j<3;j++) {
+            const int index = i*3+j;
+            const int position = 84 + 12 + i*50 + j*12;
+            // if (position + 12 >= num_faces*50 + 84) {
+                // printf("index ??  %d\n", position);
+            // }
+            std::memcpy(&all_vertices[index], &buf[position], 12);
+        }
+    }
+    printf("all vertices  %d\n", all_vertices.size());
+
+    return all_vertices;
+}
+
+std::vector<Vertex> load_stl(uint8_t* buf) {
+    return load_binary(buf);
+}
+
 std::vector<Vertex> load_ascii(const std::string filepath) {
     printf("loading ascii\n");
 
@@ -108,18 +137,21 @@ std::vector<Vertex> load_stl(const std::string filepath) {
 
 extern "C" {
 
-void new_make_bin(uint8_t* buf, int size) {
-    printf("new make bin size unsigned char %d\n", size);
-    printf("%d ", buf[0]);
-    for (int i=0;i<100;i++) {
-        printf("%d ", buf[i]);
-    }
-    printf("\nfinished\n");
-}
-/*
-void make_bin(const std::string filepath) {
+// void new_make_bin(uint8_t* buf) {
 
-    auto all_vertices = load_stl(filepath.c_str());
+    // auto all_vertices = load_stl(buf);
+    // printf("new make bin size unsigned char %d\n", size);
+    // printf("%d ", buf[0]);
+    // for (int i=0;i<100;i++) {
+        // printf("%d ", buf[i]);
+    // }
+    // printf("\nfinished\n");
+    // load_binary(buf, size);
+// }
+// void make_bin(const std::string filepath) {
+void make_bin(uint8_t* buf) {
+
+    auto all_vertices = load_stl(buf);
     const uint32_t num_indices = all_vertices.size();
     for (int c=0;c<all_vertices.size();c++)
         all_vertices[c].i = c;
@@ -212,7 +244,6 @@ void make_bin(const std::string filepath) {
     printf("boundary %f %f %f\n", minx, miny, minz);
     printf("boundary %f %f %f\n", maxx, maxy, maxz);
 }
-*/
 }
 
 

@@ -35,13 +35,17 @@ function process(file) {
         for (let i=0;i<100;i++)
             console.log(heapBytes[i])
 
-        console.log("byteoffset ", heapBytes.byteOffset)
+        console.log("byteoffset ", numBytes);
 
-        Module.ccall("new_make_bin", // c function name
+        Module.ccall("make_bin", // c function name
                 undefined, // return
-                ["number", "number"], // param
-                [heapBytes.byteOffset, numBytes]
+                ["number"], // param
+                [heapBytes.byteOffset]
         );
+
+        Module._free(heapBytes.byteOffset)
+
+        let out_bin = Module['FS_readFile']('out.bin');
     }
 }
 
