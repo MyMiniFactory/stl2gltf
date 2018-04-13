@@ -55,7 +55,28 @@
 
     worker.onmessage = function(e) {
         console.log("get back message")
-        console.log(e.data); // e.data should be an array of ArrayBuffers.
+
+        // let out_data = Module['FS_readFile']('data.txt', { encoding: 'utf8'});
+        // let out_bin = Module['FS_readFile']('out.bin');
+
+        let out_data = e.data.out_data;
+        const out_bin = e.data.out_bin;
+
+        out_data = out_data.split(" ");
+        GLOBAL.number_indices = parseInt(out_data[0]);
+        GLOBAL.number_vertices = parseInt(out_data[1]);
+        GLOBAL.indices_blength = parseInt(out_data[2]);
+        GLOBAL.vertices_blength = parseInt(out_data[3]);
+        GLOBAL.total_blength = parseInt(out_data[4]);
+        GLOBAL.minx = parseFloat(out_data[5]);
+        GLOBAL.miny = parseFloat(out_data[6]);
+        GLOBAL.minz = parseFloat(out_data[7]);
+        GLOBAL.maxx = parseFloat(out_data[8]);
+        GLOBAL.maxy = parseFloat(out_data[9]);
+        GLOBAL.maxz = parseFloat(out_data[10]);
+
+        download_glb(out_bin);
+
     };
 
     worker.onerror = function(e) {
@@ -63,6 +84,28 @@
             'ERROR: Line ', e.lineno, ' in ', e.filename, ': ', e.message].join('');
     };
 
+    var simplify_worker = new Worker('simplify/worker.js');
+    simplify_worker.onmessage = function(e) {
+        const file = e.data.blob;
+
+        if (file !== undefined) {
+            let url = window.URL.createObjectURL(file);
+            var download_a = document.getElementById('download');
+            download_a.href = url;
+            const stl_name = "test.stl";
+            download_a.download = stl_name;
+
+            var download_button = document.getElementById('download_button');
+            download_button.disabled = false;
+            download_button.innerHTML = "Click to Download " + stl_name;
+            download_button.click();
+        }
+
+        if (file !== undefined) {
+            console.log("Simplify finished");
+            // worker.postMessage(file); // post message
+        }
+    }
 
     let GLOBAL = {
         color : [150, 150, 150, 1],
@@ -115,65 +158,20 @@
             this.value = null;
         }
 
-        worker.postMessage(file);
-        /*
-        check_file(file, function(){check_file_success()});
+        GLOBAL.stl_name = file.name;
 
-        function check_file_success() {
+        const seven_MB = 7*1024*1024;
 
-            put_status("Converting by your browser");
-
-            var uploadform = document.getElementById("fileuploadform");
-            var filename = file.name;
-            var fr = new FileReader();
-            fr.readAsDataURL(file);
-
-            fr.onload = function (){
-
-                console.log(filename);
-
-                if (filename === GLOBAL.stl_name) { // user upload the same file as last one
-                    console.log("same stl file");
-                    download_glb();
-                    return;
-                } else if (GLOBAL.stl_name !== undefined) { // not same file rm old file
-                    console.log("new filename ", filename, "unlink", GLOBAL.stl_name);
-                    Module['FS_unlink'](GLOBAL.stl_name);
-                }
-
-                var stl_name = filename;
-
-                var data = atob(fr.result.split(",")[1]); // base64 to Uint8 for emscripten
-                Module['FS_createDataFile'](".", stl_name, data, true, true);
-
-                Module.ccall("make_bin", // c function name
-                        undefined, // return
-                        ["string"], // param
-                        [stl_name]
-                );
-
-                // Using a file to output data from c++ to js
-                // because if I use a pointer to array, if memory grow in wasm,
-                // this array will be in a different place
-                // then the pointer will be pointing to a wrong memory address
-                let out_data = Module['FS_readFile']('data.txt', { encoding: 'utf8'});
-                out_data = out_data.split(" ");
-                GLOBAL.number_indices = parseInt(out_data[0]);
-                GLOBAL.number_vertices = parseInt(out_data[1]);
-                GLOBAL.indices_blength = parseInt(out_data[2]);
-                GLOBAL.vertices_blength = parseInt(out_data[3]);
-                GLOBAL.total_blength = parseInt(out_data[4]);
-                GLOBAL.minx = parseFloat(out_data[5]);
-                GLOBAL.miny = parseFloat(out_data[6]);
-                GLOBAL.minz = parseFloat(out_data[7]);
-                GLOBAL.maxx = parseFloat(out_data[8]);
-                GLOBAL.maxy = parseFloat(out_data[9]);
-                GLOBAL.maxz = parseFloat(out_data[10]);
-                GLOBAL.stl_name = stl_name;
-                download_glb();
-            }
-        } // check file success
-        */
+        if (file.size > 7*1024*1024) { // too big needs to simplify
+            console.log("needs to simplify");
+            simplify_worker.postMessage({
+                "blob":file,
+                "percentage": seven_MB/file.size,
+                "simplify_name": file.name,
+            });
+        } else {
+            worker.postMessage(file); // post message
+        }
     }
 
     function gltf_dict(
@@ -264,7 +262,7 @@
         } // end of dict
     }
 
-    function download_glb() {
+    function download_glb(out_bin) {
 
         if (GLOBAL.stl_name === undefined) {
             put_status("Please upload a file");
@@ -347,7 +345,7 @@
         glb[body_offset+6] = 0x4E; // N
         glb[body_offset+7] = 0x00; //
 
-        let out_bin = Module['FS_readFile']('out.bin');
+        // let out_bin = Module['FS_readFile']('out.bin');
 
         let blob = new Blob([glb, out_bin], {type: 'application/sla'});
         let url = window.URL.createObjectURL(blob);

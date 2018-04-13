@@ -9,20 +9,15 @@ function process(file) {
 
     console.log("in worker process", file);
 
-    var buffers = [];
-    var reader = new FileReaderSync();
-    buffers.push(reader.readAsArrayBuffer(file));
-
-    var stl_name = file.name;
     var fr = new FileReader();
 
-    console.log(file);
+    console.log("worker", file);
 
     fr.readAsArrayBuffer(file);
 
     fr.onloadend = function (e){
         var data = fr.result; // Uint8 for emscripten
-        console.log(data)
+        console.log("worker", data)
 
         var numBytes = data.byteLength; // 1 bytes per element
         var data_Uint8 = new Uint8Array(data);
@@ -45,7 +40,9 @@ function process(file) {
 
         Module._free(heapBytes.byteOffset)
 
-        let out_bin = Module['FS_readFile']('out.bin');
+        const out_data = Module['FS_readFile']('data.txt', { encoding: 'utf8'});
+        const out_bin = Module['FS_readFile']('out.bin');
+        self.postMessage({out_bin, out_data});
     }
 }
 
