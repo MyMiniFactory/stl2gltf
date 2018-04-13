@@ -3,14 +3,14 @@ O3 := -O3
 WASM := -s WASM=1
 
 all:
-	g++ stl2gltf.cpp -std=c++11 -stdlib=libc++ -I .
+	g++ stl2gltf.cpp -std=c++11 -I .
 release:
-	g++ stl2gltf.cpp -std=c++11 -stdlib=libc++ -I . ${O3}
+	g++ stl2gltf.cpp -std=c++11 -I . ${O3}
 em:
-	em++ stl2gltf.cpp -std=c++11 -stdlib=libc++ -I . ${EM_CXX_FLAG}
+	em++ stl2gltf.cpp -std=c++11 -I . ${EM_CXX_FLAG}
 em_release:
-	em++ stl2gltf.cpp -std=c++11 -stdlib=libc++ -I . ${EM_CXX_FLAG} ${O3}
+	em++ stl2gltf.cpp -std=c++11 -I . ${EM_CXX_FLAG} ${O3}
 wasm:
-	em++ stl2gltf.cpp -std=c++11 -stdlib=libc++ -I . ${EM_CXX_FLAG} ${WASM}
+	em++ stl2gltf.cpp -std=c++11 -I . ${EM_CXX_FLAG} ${WASM}
 wasm_release:
-	em++ stl2gltf.cpp -std=c++11 -stdlib=libc++ -I . ${EM_CXX_FLAG} ${O3} ${WASM}
+	em++ stl2gltf.cpp -std=c++11 -I . ${EM_CXX_FLAG} ${O3} ${WASM}

@@ -80,8 +80,7 @@
     };
 
     worker.onerror = function(e) {
-        document.querySelector('#error').textContent = [
-            'ERROR: Line ', e.lineno, ' in ', e.filename, ': ', e.message].join('');
+        console.error(e);
     };
 
     var simplify_worker = new Worker('simplify/worker.js');
