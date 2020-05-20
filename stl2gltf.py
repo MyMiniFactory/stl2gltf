@@ -1,79 +1,79 @@
 import os
+import struct
 
-def stl_to_gltf(binary_stl_path, out_path, is_binary):
-    import struct
 
+def stl_to_gltf(path_to_stl, out_path, is_binary):
     gltf2 = '''
-{
-  "scenes" : [
     {
-      "nodes" : [ 0 ]
-    }
-  ],
+      "scenes" : [
+        {
+          "nodes" : [ 0 ]
+        }
+      ],
 
-  "nodes" : [
-    {
-      "mesh" : 0
-    }
-  ],
+      "nodes" : [
+        {
+          "mesh" : 0
+        }
+      ],
 
-  "meshes" : [
-    {
-      "primitives" : [ {
-        "attributes" : {
-          "POSITION" : 1
+      "meshes" : [
+        {
+          "primitives" : [ {
+            "attributes" : {
+              "POSITION" : 1
+            },
+            "indices" : 0
+          } ]
+        }
+      ],
+
+      "buffers" : [
+        {
+          %s
+          "byteLength" : %d
+        }
+      ],
+      "bufferViews" : [
+        {
+          "buffer" : 0,
+          "byteOffset" : 0,
+          "byteLength" : %d,
+          "target" : 34963
         },
-        "indices" : 0
-      } ]
-    }
-  ],
+        {
+          "buffer" : 0,
+          "byteOffset" : %d,
+          "byteLength" : %d,
+          "target" : 34962
+        }
+      ],
+      "accessors" : [
+        {
+          "bufferView" : 0,
+          "byteOffset" : 0,
+          "componentType" : 5125,
+          "count" : %d,
+          "type" : "SCALAR",
+          "max" : [ %d ],
+          "min" : [ 0 ]
+        },
+        {
+          "bufferView" : 1,
+          "byteOffset" : 0,
+          "componentType" : 5126,
+          "count" : %d,
+          "type" : "VEC3",
+          "min" : [%f, %f, %f],
+          "max" : [%f, %f, %f]
+        }
+      ],
 
-  "buffers" : [
-    {
-      %s
-      "byteLength" : %d
+      "asset" : {
+        "version" : "2.0"
+      }
     }
-  ],
-  "bufferViews" : [
-    {
-      "buffer" : 0,
-      "byteOffset" : 0,
-      "byteLength" : %d,
-      "target" : 34963
-    },
-    {
-      "buffer" : 0,
-      "byteOffset" : %d,
-      "byteLength" : %d,
-      "target" : 34962
-    }
-  ],
-  "accessors" : [
-    {
-      "bufferView" : 0,
-      "byteOffset" : 0,
-      "componentType" : 5125,
-      "count" : %d,
-      "type" : "SCALAR",
-      "max" : [ %d ],
-      "min" : [ 0 ]
-    },
-    {
-      "bufferView" : 1,
-      "byteOffset" : 0,
-      "componentType" : 5126,
-      "count" : %d,
-      "type" : "VEC3",
-      "min" : [%f, %f, %f],
-      "max" : [%f, %f, %f]
-    }
-  ],
-
-  "asset" : {
-    "version" : "2.0"
-  }
-}
-'''
+    '''
 
     header_bytes = 80
     unsigned_long_int_bytes = 4
